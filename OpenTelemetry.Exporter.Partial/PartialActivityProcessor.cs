@@ -10,7 +10,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private const int DefaultScheduledDelayMilliseconds = 5000;
     private int scheduledDelayMilliseconds;
     private Thread exporterThread;
-    private AutoResetEvent exportTrigger;
     private ManualResetEvent shutdownTrigger;
 
     private ConcurrentDictionary<ActivitySpanId, Activity> activeActivities;
@@ -34,7 +33,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
         endedActivities = new ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>>();
 
-        exportTrigger = new AutoResetEvent(false);
+        new AutoResetEvent(false);
         shutdownTrigger = new ManualResetEvent(false);
 
         // Access OpenTelemetry internals as soon as possible to fail fast rather than waiting for the first heartbeat
@@ -51,7 +50,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private void ExporterProc()
     {
-        var triggers = new WaitHandle[] { exportTrigger, shutdownTrigger };
+        var triggers = new WaitHandle[] { shutdownTrigger };
 
         while (true)
         {
@@ -211,7 +210,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        exportTrigger.Dispose();
         shutdownTrigger.Dispose();
     }
 
