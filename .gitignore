@@ -1,0 +1,100 @@
+# Ignore Visual Studio temporary files, build results, and
+# user-specific files.
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# User-specific folders
+.vscode/
+.idea/
+.vs/
+.ipynb_checkpoints/
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rtifacts/
+bin/
+obj/
+out/
+TestResults/
+TestResults_*/*.trx
+TestResults_*/*.xml
+*.coverage
+*.coveragexml
+
+# ASP.NET Core
+appsettings.Development.json
+appsettings.Production.json
+
+# Rider
+*.sln.iml
+.idea/
+
+# JetBrains Rider
+**/.idea/
+**/*.sln.iml
+
+# Code coverage results
+coverage/
+*.coverage
+*.coverlet
+*.coveragexml
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.pdb
+*.ilk
+*.obj
+
+# Resharper
+*.DotSettings.user
+*.ReSharper
+*_Resharper.*
+
+# NuGet Packages
+*.nupkg
+**/packages/*
+!**/packages/build/
+**/packages/Build/
+**/packages/repositories.config
+
+# .NET CLI
+dotnet-tools.json
+
+# Local environment
+.env
+.env.*
+
+# Logs
+*.log
+logs/
+
+# Docker
+**/Dockerfile
+**/docker-compose*.yml
+
+# Kubernetes
+k8s/*.yaml
+helm/*.yaml
+
+# Entity Framework migrations
+Migrations/
+
+# Secrets
+secrets.json
+secrets/
+
+# Mono auto-generated files
+mono_crash.*
+
+# MacOS files
+.DS_Store
