@@ -22,13 +22,13 @@ public class Example
         {
             Protocol = OtlpExportProtocol.Grpc,
             Endpoint =
-                new Uri("http://localhost:4317")
+                new Uri("http://otel-partial-collector:4317")
         });
 
         var otlpLogExporter = new OtlpLogExporter(new OtlpExporterOptions
         {
             Protocol = OtlpExportProtocol.HttpProtobuf,
-            Endpoint = new Uri("http://localhost:4318/v1/logs")
+            Endpoint = new Uri("http://otel-partial-collector:4318/v1/logs")
         });
 
         var tracerProvider = Sdk.CreateTracerProviderBuilder()
