@@ -6,5 +6,10 @@ OTEL Dotnet SDK extension supporting partial spans
 dotnet build
 ```
 
+# test
+```bash
+dotnet test
+```
+
 # usage
 Check Example.cs for usage examples.
