@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenTelemetry.Exporter.Partial", "OpenTelemetry.Exporter.Partial\OpenTelemetry.Exporter.Partial.csproj", "{73452E60-2AE8-4A9B-9651-22525E590B06}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenTelemetry.Exporter.Partial.Tests", "OpenTelemetry.Exporter.Partial.Tests\OpenTelemetry.Exporter.Partial.Tests.csproj", "{67B14284-D30E-4D15-A57C-51C011505745}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{73452E60-2AE8-4A9B-9651-22525E590B06}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{73452E60-2AE8-4A9B-9651-22525E590B06}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{73452E60-2AE8-4A9B-9651-22525E590B06}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67B14284-D30E-4D15-A57C-51C011505745}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67B14284-D30E-4D15-A57C-51C011505745}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67B14284-D30E-4D15-A57C-51C011505745}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67B14284-D30E-4D15-A57C-51C011505745}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

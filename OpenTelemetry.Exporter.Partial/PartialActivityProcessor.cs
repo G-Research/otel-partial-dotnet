@@ -14,6 +14,10 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private ConcurrentDictionary<ActivitySpanId, Activity> activeActivities;
     private ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>> endedActivities;
+    public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities => activeActivities;
+    public IReadOnlyCollection<KeyValuePair<ActivitySpanId, Activity>> EndedActivities =>
+        endedActivities;
+
     private BaseExporter<LogRecord> logExporter;
 
     private static MethodInfo WriteTraceDataMethod;
@@ -33,7 +37,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
         endedActivities = new ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>>();
 
-        new AutoResetEvent(false);
         shutdownTrigger = new ManualResetEvent(false);
 
         // Access OpenTelemetry internals as soon as possible to fail fast rather than waiting for the first heartbeat
