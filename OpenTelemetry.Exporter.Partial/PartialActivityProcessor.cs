@@ -7,8 +7,8 @@ namespace OpenTelemetry.Exporter.Partial;
 
 public class PartialActivityProcessor : BaseProcessor<Activity>
 {
-    private const int DefaultLogEmitInterval = 5000;
-    private int logEmitInterval;
+    private const int DefaultHeartbeatIntervalMs = 5000;
+    private int heartbeatIntervalMs;
     private Thread exporterThread;
     private ManualResetEvent shutdownTrigger;
 
@@ -26,13 +26,13 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public PartialActivityProcessor(
         BaseExporter<LogRecord> logExporter,
-        int logEmitInterval = DefaultLogEmitInterval)
+        int heartbeatIntervalMs = DefaultHeartbeatIntervalMs)
     {
         ArgumentNullException.ThrowIfNull(logExporter);
         this.logExporter = logExporter;
 
-        ArgumentOutOfRangeException.ThrowIfLessThan(logEmitInterval, 1);
-        this.logEmitInterval = logEmitInterval;
+        ArgumentOutOfRangeException.ThrowIfLessThan(heartbeatIntervalMs, 1);
+        this.heartbeatIntervalMs = heartbeatIntervalMs;
 
         activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
         endedActivities = new ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>>();
@@ -59,7 +59,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             try
             {
-                WaitHandle.WaitAny(triggers, logEmitInterval);
+                WaitHandle.WaitAny(triggers, heartbeatIntervalMs);
                 Heartbeat();
             }
             catch (ObjectDisposedException)
@@ -225,7 +225,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private List<KeyValuePair<string, object?>> GetHeartbeatLogRecordAttributes() =>
     [
         new("partial.event", "heartbeat"),
-        new("partial.frequency", logEmitInterval + "ms")
+        new("partial.frequency", heartbeatIntervalMs + "ms")
     ];
 
     private static List<KeyValuePair<string, object?>> GetStopLogRecordAttributes() =>
