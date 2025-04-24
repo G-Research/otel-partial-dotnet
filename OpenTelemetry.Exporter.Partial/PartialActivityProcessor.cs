@@ -177,13 +177,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         endedActivities.Enqueue(new KeyValuePair<ActivitySpanId, Activity>(data.SpanId, data));
     }
 
-
-    // TODO: export logs for all active activities
-    protected override bool OnForceFlush(int timeoutMilliseconds)
-    {
-        return base.OnForceFlush(timeoutMilliseconds);
-    }
-
     protected override bool OnShutdown(int timeoutMilliseconds)
     {
         try
