@@ -7,8 +7,8 @@ namespace OpenTelemetry.Exporter.Partial;
 
 public class PartialActivityProcessor : BaseProcessor<Activity>
 {
-    private const int DefaultScheduledDelayMilliseconds = 5000;
-    private int scheduledDelayMilliseconds;
+    private const int DefaultLogEmitInterval = 5000;
+    private int logEmitInterval;
     private Thread exporterThread;
     private ManualResetEvent shutdownTrigger;
 
@@ -26,13 +26,13 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public PartialActivityProcessor(
         BaseExporter<LogRecord> logExporter,
-        int scheduledDelayMilliseconds = DefaultScheduledDelayMilliseconds)
+        int logEmitInterval = DefaultLogEmitInterval)
     {
         ArgumentNullException.ThrowIfNull(logExporter);
         this.logExporter = logExporter;
 
-        ArgumentOutOfRangeException.ThrowIfLessThan(scheduledDelayMilliseconds, 1);
-        this.scheduledDelayMilliseconds = scheduledDelayMilliseconds;
+        ArgumentOutOfRangeException.ThrowIfLessThan(logEmitInterval, 1);
+        this.logEmitInterval = logEmitInterval;
 
         activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
         endedActivities = new ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>>();
@@ -59,7 +59,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             try
             {
-                WaitHandle.WaitAny(triggers, scheduledDelayMilliseconds);
+                WaitHandle.WaitAny(triggers, logEmitInterval);
                 Heartbeat();
             }
             catch (ObjectDisposedException)
@@ -225,7 +225,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private List<KeyValuePair<string, object?>> GetHeartbeatLogRecordAttributes() =>
     [
         new("partial.event", "heartbeat"),
-        new("partial.frequency", scheduledDelayMilliseconds + "ms")
+        new("partial.frequency", logEmitInterval + "ms")
     ];
 
     private static List<KeyValuePair<string, object?>> GetStopLogRecordAttributes() =>

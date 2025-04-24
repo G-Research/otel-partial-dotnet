@@ -34,7 +34,7 @@ public class Example
         var tracerProvider = Sdk.CreateTracerProviderBuilder()
             .AddSource("activitySource")
             .AddProcessor(new PartialActivityProcessor(otlpLogExporter,
-                scheduledDelayMilliseconds: 1000))
+                logEmitInterval: 1000))
             .AddProcessor(new SimpleActivityExportProcessor(otlpExporter))
             .Build();
 
