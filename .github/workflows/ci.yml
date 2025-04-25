@@ -27,7 +27,7 @@ jobs:
         run: dotnet build G-Research.OpenTelemetry.Processor.Partial.Tests --configuration=Release --framework=${{ matrix.framework }}
       - name: Run tests
         shell: bash
-        run: dotnet test G-Research.OpenTelemetry.Processor.Partial.Tests --configuration=Release --logger "GitHubActions;report-warnings=false" --no-build -v=Normal --framework=${{ matrix.framework }}
+        run: dotnet test G-Research.OpenTelemetry.Processor.Partial.Tests --configuration=Release --no-build -v=Normal --framework=${{ matrix.framework }}
   
   package:
     runs-on: windows-latest
