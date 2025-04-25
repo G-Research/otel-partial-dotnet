@@ -1,10 +1,9 @@
 ﻿using System.Diagnostics;
-using GR.OpenTelemetry.Processor.Partial;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using Xunit;
 
-namespace GR.Processor.Partial.Tests
+namespace GR.OpenTelemetry.Processor.Partial.Tests
 {
     public class PartialActivityProcessorTests
     {

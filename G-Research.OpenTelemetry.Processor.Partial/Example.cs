@@ -4,7 +4,7 @@ using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Trace;
 
-namespace Processor.Partial;
+namespace GR.OpenTelemetry.Processor.Partial;
 
 public class Example
 {
