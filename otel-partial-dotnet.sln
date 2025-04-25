@@ -1,8 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenTelemetry.Exporter.Partial", "OpenTelemetry.Exporter.Partial\OpenTelemetry.Exporter.Partial.csproj", "{73452E60-2AE8-4A9B-9651-22525E590B06}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "G-Research.OpenTelemetry.Processor.Partial", "G-Research.OpenTelemetry.Processor.Partial\G-Research.OpenTelemetry.Processor.Partial.csproj", "{73452E60-2AE8-4A9B-9651-22525E590B06}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenTelemetry.Exporter.Partial.Tests", "OpenTelemetry.Exporter.Partial.Tests\OpenTelemetry.Exporter.Partial.Tests.csproj", "{67B14284-D30E-4D15-A57C-51C011505745}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "G-Research.OpenTelemetry.Processor.Partial.Tests", "G-Research.OpenTelemetry.Processor.Partial.Tests\G-Research.OpenTelemetry.Processor.Partial.Tests.csproj", "{67B14284-D30E-4D15-A57C-51C011505745}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

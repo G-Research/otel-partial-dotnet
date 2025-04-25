@@ -1,7 +1,10 @@
 using System.Diagnostics;
+using GR.OpenTelemetry.Processor.Partial;
+using OpenTelemetry;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Trace;
 
-namespace OpenTelemetry.Exporter.Partial;
+namespace Processor.Partial;
 
 public class Example
 {

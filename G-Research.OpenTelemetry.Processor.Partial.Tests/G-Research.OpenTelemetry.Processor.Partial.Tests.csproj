@@ -4,7 +4,6 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>OpenTelemetry.Export.Partial.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OpenTelemetry.Exporter.Partial\OpenTelemetry.Exporter.Partial.csproj" />
+    <ProjectReference Include="..\G-Research.OpenTelemetry.Processor.Partial\G-Research.OpenTelemetry.Processor.Partial.csproj" />
   </ItemGroup>
 
 </Project>

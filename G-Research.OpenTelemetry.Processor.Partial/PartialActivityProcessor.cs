@@ -1,9 +1,10 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
+using OpenTelemetry;
 using OpenTelemetry.Logs;
 
-namespace OpenTelemetry.Exporter.Partial;
+namespace GR.OpenTelemetry.Processor.Partial;
 
 public class PartialActivityProcessor : BaseProcessor<Activity>
 {
