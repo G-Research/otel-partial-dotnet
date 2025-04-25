@@ -11,13 +11,13 @@ namespace GR.Processor.Partial.Tests
         private List<LogRecord> exportedLogs = [];
         private InMemoryExporter<LogRecord> logExporter;
         private PartialActivityProcessor processor;
-        private const int ScheduledDelayMilliseconds = 1000;
+        private const int heartbeatInervalMs = 1000;
 
         public PartialActivityProcessorTests()
         {
             logExporter = new InMemoryExporter<LogRecord>(exportedLogs);
             processor =
-                new PartialActivityProcessor(logExporter, ScheduledDelayMilliseconds);
+                new PartialActivityProcessor(logExporter, heartbeatInervalMs);
         }
 
         [Fact]
@@ -61,7 +61,7 @@ namespace GR.Processor.Partial.Tests
 
             processor.OnEnd(activity);
 
-            Thread.Sleep(ScheduledDelayMilliseconds);
+            Thread.Sleep(heartbeatInervalMs);
 
             Assert.DoesNotContain(activity.SpanId, processor.ActiveActivities);
             Assert.DoesNotContain(
@@ -78,9 +78,9 @@ namespace GR.Processor.Partial.Tests
             processor.OnStart(activity);
 
             Assert.Single(exportedLogs);
-            Thread.Sleep(ScheduledDelayMilliseconds);
+            Thread.Sleep(heartbeatInervalMs + 100);
             Assert.Equal(2, exportedLogs.Count);
-            Thread.Sleep(ScheduledDelayMilliseconds);
+            Thread.Sleep(heartbeatInervalMs + 100);
             Assert.Equal(3, exportedLogs.Count);
         }
     }
