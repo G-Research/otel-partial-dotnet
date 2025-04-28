@@ -24,7 +24,7 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - name: Build
-        run: dotnet build G-Research.OpenTelemetry.Processor.Partial.Tests --configuration=Release --framework=${{ matrix.framework }}
+        run: dotnet build G-Research.OpenTelemetry.Processor.Partial --configuration=Release --framework=${{ matrix.framework }}
       - name: Run tests
         shell: bash
         run: dotnet test G-Research.OpenTelemetry.Processor.Partial.Tests --configuration=Release --no-build -v=Normal --framework=${{ matrix.framework }}
