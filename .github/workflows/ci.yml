@@ -32,7 +32,7 @@ jobs:
           dotnet-version: 8.0.x
       - name: Run tests
         shell: bash
-        run: dotnet test --configuration=Release -v=Normal --framework=${{ matrix.framework }}
+        run: dotnet test --configuration=Release --framework=${{ matrix.framework }}
   
   package:
     runs-on: windows-latest
