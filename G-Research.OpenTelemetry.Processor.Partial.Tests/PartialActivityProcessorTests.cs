@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using GR.OpenTelemetry.Processor.Partial;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using Xunit;
