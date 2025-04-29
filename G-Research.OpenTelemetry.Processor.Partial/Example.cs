@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using OpenTelemetry;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Trace;
 
-namespace OpenTelemetry.Exporter.Partial;
+namespace GR.OpenTelemetry.Processor.Partial;
 
 public class Example
 {
@@ -22,19 +24,19 @@ public class Example
         {
             Protocol = OtlpExportProtocol.Grpc,
             Endpoint =
-                new Uri("http://otel-partial-collector:4317")
+                new Uri("http://localhost:4317")
         });
 
         var otlpLogExporter = new OtlpLogExporter(new OtlpExporterOptions
         {
             Protocol = OtlpExportProtocol.HttpProtobuf,
-            Endpoint = new Uri("http://otel-partial-collector:4318/v1/logs")
+            Endpoint = new Uri("http://localhost:4318/v1/logs")
         });
 
         var tracerProvider = Sdk.CreateTracerProviderBuilder()
             .AddSource("activitySource")
             .AddProcessor(new PartialActivityProcessor(otlpLogExporter,
-                scheduledDelayMilliseconds: 1000))
+                heartbeatIntervalMilliseconds: 1000))
             .AddProcessor(new SimpleActivityExportProcessor(otlpExporter))
             .Build();
 

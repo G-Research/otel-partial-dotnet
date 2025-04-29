@@ -1,20 +1,22 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
+using OpenTelemetry;
 using OpenTelemetry.Logs;
 
-namespace OpenTelemetry.Exporter.Partial;
+namespace GR.OpenTelemetry.Processor.Partial;
 
 public class PartialActivityProcessor : BaseProcessor<Activity>
 {
-    private const int DefaultScheduledDelayMilliseconds = 5000;
-    private int scheduledDelayMilliseconds;
+    private const int DefaultHeartbeatIntervalMilliseconds = 5000;
+    private int heartbeatIntervalMilliseconds;
     private Thread exporterThread;
     private ManualResetEvent shutdownTrigger;
 
     private ConcurrentDictionary<ActivitySpanId, Activity> activeActivities;
     private ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>> endedActivities;
     public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities => activeActivities;
+
     public IReadOnlyCollection<KeyValuePair<ActivitySpanId, Activity>> EndedActivities =>
         endedActivities;
 
@@ -26,13 +28,27 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public PartialActivityProcessor(
         BaseExporter<LogRecord> logExporter,
-        int scheduledDelayMilliseconds = DefaultScheduledDelayMilliseconds)
+        int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds)
     {
+#if NET
         ArgumentNullException.ThrowIfNull(logExporter);
+#else
+        if (logExporter == null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(logExporter));
+        }
+#endif
         this.logExporter = logExporter;
 
-        ArgumentOutOfRangeException.ThrowIfLessThan(scheduledDelayMilliseconds, 1);
-        this.scheduledDelayMilliseconds = scheduledDelayMilliseconds;
+#if NET
+        ArgumentOutOfRangeException.ThrowIfLessThan(heartbeatIntervalMilliseconds, 1);
+#else
+        if (heartbeatIntervalMilliseconds < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(heartbeatIntervalMilliseconds));
+        }
+#endif
+        this.heartbeatIntervalMilliseconds = heartbeatIntervalMilliseconds;
 
         activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
         endedActivities = new ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>>();
@@ -59,7 +75,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             try
             {
-                WaitHandle.WaitAny(triggers, scheduledDelayMilliseconds);
+                WaitHandle.WaitAny(triggers, heartbeatIntervalMilliseconds);
                 Heartbeat();
             }
             catch (ObjectDisposedException)
@@ -177,13 +193,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         endedActivities.Enqueue(new KeyValuePair<ActivitySpanId, Activity>(data.SpanId, data));
     }
 
-
-    // TODO: export logs for all active activities
-    protected override bool OnForceFlush(int timeoutMilliseconds)
-    {
-        return base.OnForceFlush(timeoutMilliseconds);
-    }
-
     protected override bool OnShutdown(int timeoutMilliseconds)
     {
         try
@@ -225,7 +234,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private List<KeyValuePair<string, object?>> GetHeartbeatLogRecordAttributes() =>
     [
         new("partial.event", "heartbeat"),
-        new("partial.frequency", scheduledDelayMilliseconds + "ms")
+        new("partial.frequency", heartbeatIntervalMilliseconds + "ms")
     ];
 
     private static List<KeyValuePair<string, object?>> GetStopLogRecordAttributes() =>

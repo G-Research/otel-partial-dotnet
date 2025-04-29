@@ -1,23 +1,22 @@
 ﻿using System.Diagnostics;
 using OpenTelemetry.Exporter;
-using OpenTelemetry.Exporter.Partial;
 using OpenTelemetry.Logs;
 using Xunit;
 
-namespace OpenTelemetry.Export.Partial.Tests
+namespace GR.OpenTelemetry.Processor.Partial.Tests
 {
     public class PartialActivityProcessorTests
     {
         private List<LogRecord> exportedLogs = [];
         private InMemoryExporter<LogRecord> logExporter;
         private PartialActivityProcessor processor;
-        private const int ScheduledDelayMilliseconds = 1000;
+        private const int HeartbeatIntervalMilliseconds = 1000;
 
         public PartialActivityProcessorTests()
         {
             logExporter = new InMemoryExporter<LogRecord>(exportedLogs);
             processor =
-                new PartialActivityProcessor(logExporter, ScheduledDelayMilliseconds);
+                new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds);
         }
 
         [Fact]
@@ -61,7 +60,7 @@ namespace OpenTelemetry.Export.Partial.Tests
 
             processor.OnEnd(activity);
 
-            Thread.Sleep(ScheduledDelayMilliseconds);
+            Thread.Sleep(HeartbeatIntervalMilliseconds);
 
             Assert.DoesNotContain(activity.SpanId, processor.ActiveActivities);
             Assert.DoesNotContain(
@@ -78,9 +77,9 @@ namespace OpenTelemetry.Export.Partial.Tests
             processor.OnStart(activity);
 
             Assert.Single(exportedLogs);
-            Thread.Sleep(ScheduledDelayMilliseconds);
+            Thread.Sleep(HeartbeatIntervalMilliseconds + 100);
             Assert.Equal(2, exportedLogs.Count);
-            Thread.Sleep(ScheduledDelayMilliseconds);
+            Thread.Sleep(HeartbeatIntervalMilliseconds + 100);
             Assert.Equal(3, exportedLogs.Count);
         }
     }

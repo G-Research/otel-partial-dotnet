@@ -1,10 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <TargetFrameworks>net9.0;net8.0</TargetFrameworks>
+    <TargetFrameworks Condition="$(OS) == 'Windows_NT'">$(TargetFrameworks);net462</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>OpenTelemetry.Export.Partial.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,11 +14,11 @@
     <PackageReference Include="OpenTelemetry.Exporter.InMemory" Version="1.11.2" />
     <PackageReference Include="xunit" Version="2.9.3"/>
     <PackageReference Include="Moq" Version="4.20.72" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2"/>
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OpenTelemetry.Exporter.Partial\OpenTelemetry.Exporter.Partial.csproj" />
+    <ProjectReference Include="..\G-Research.OpenTelemetry.Processor.Partial\G-Research.OpenTelemetry.Processor.Partial.csproj" />
   </ItemGroup>
 
 </Project>
