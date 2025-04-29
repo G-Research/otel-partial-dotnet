@@ -60,7 +60,7 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
 
             processor.OnEnd(activity);
 
-            Thread.Sleep(HeartbeatIntervalMilliseconds);
+            Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatIntervalMilliseconds/2);
 
             Assert.DoesNotContain(activity.SpanId, processor.ActiveActivities);
             Assert.DoesNotContain(
