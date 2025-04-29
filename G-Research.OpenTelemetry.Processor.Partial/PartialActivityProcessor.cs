@@ -8,14 +8,15 @@ namespace GR.OpenTelemetry.Processor.Partial;
 
 public class PartialActivityProcessor : BaseProcessor<Activity>
 {
-    private const int DefaultHeartbeatIntervalMs = 5000;
-    private int heartbeatIntervalMs;
+    private const int DefaultHeartbeatIntervalMilliseconds = 5000;
+    private int heartbeatIntervalMilliseconds;
     private Thread exporterThread;
     private ManualResetEvent shutdownTrigger;
 
     private ConcurrentDictionary<ActivitySpanId, Activity> activeActivities;
     private ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>> endedActivities;
     public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities => activeActivities;
+
     public IReadOnlyCollection<KeyValuePair<ActivitySpanId, Activity>> EndedActivities =>
         endedActivities;
 
@@ -27,13 +28,27 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public PartialActivityProcessor(
         BaseExporter<LogRecord> logExporter,
-        int heartbeatIntervalMs = DefaultHeartbeatIntervalMs)
+        int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds)
     {
+#if NET
         ArgumentNullException.ThrowIfNull(logExporter);
+#else
+        if (logExporter == null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(logExporter));
+        }
+#endif
         this.logExporter = logExporter;
 
-        ArgumentOutOfRangeException.ThrowIfLessThan(heartbeatIntervalMs, 1);
-        this.heartbeatIntervalMs = heartbeatIntervalMs;
+#if NET
+        ArgumentOutOfRangeException.ThrowIfLessThan(heartbeatIntervalMilliseconds, 1);
+#else
+        if (heartbeatIntervalMilliseconds < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(heartbeatIntervalMilliseconds));
+        }
+#endif
+        this.heartbeatIntervalMilliseconds = heartbeatIntervalMilliseconds;
 
         activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
         endedActivities = new ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>>();
@@ -60,7 +75,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             try
             {
-                WaitHandle.WaitAny(triggers, heartbeatIntervalMs);
+                WaitHandle.WaitAny(triggers, heartbeatIntervalMilliseconds);
                 Heartbeat();
             }
             catch (ObjectDisposedException)
@@ -219,7 +234,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private List<KeyValuePair<string, object?>> GetHeartbeatLogRecordAttributes() =>
     [
         new("partial.event", "heartbeat"),
-        new("partial.frequency", heartbeatIntervalMs + "ms")
+        new("partial.frequency", heartbeatIntervalMilliseconds + "ms")
     ];
 
     private static List<KeyValuePair<string, object?>> GetStopLogRecordAttributes() =>

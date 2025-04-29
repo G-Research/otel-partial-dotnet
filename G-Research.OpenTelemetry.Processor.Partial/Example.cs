@@ -1,10 +1,9 @@
 using System.Diagnostics;
-using GR.OpenTelemetry.Processor.Partial;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Trace;
 
-namespace Processor.Partial;
+namespace GR.OpenTelemetry.Processor.Partial;
 
 public class Example
 {
@@ -37,7 +36,7 @@ public class Example
         var tracerProvider = Sdk.CreateTracerProviderBuilder()
             .AddSource("activitySource")
             .AddProcessor(new PartialActivityProcessor(otlpLogExporter,
-                heartbeatIntervalMs: 1000))
+                heartbeatIntervalMilliseconds: 1000))
             .AddProcessor(new SimpleActivityExportProcessor(otlpExporter))
             .Build();
 
