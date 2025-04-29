@@ -35,7 +35,7 @@ jobs:
         run: dotnet test --configuration=Release --framework=${{ matrix.framework }}
   
   package:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     needs: [ Processor_Partial ]
     steps:
       - name: Checkout
@@ -43,6 +43,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
       - name: Create NuGet packages
+        shell: pwsh
         run: |
           if (-not ("${{ github.ref }}" -like "refs/tags/v*")) {
             $suffix = "preview-$(Get-Date -Format yyyyMMddHHmmss -AsUTC)-$(git rev-parse --short HEAD)"
