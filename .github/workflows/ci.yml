@@ -11,8 +11,8 @@ jobs:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest, macos-13] # macos-13 for x86_x64 arch
-        framework: [net8.0, net9.0]
+        os: [ ubuntu-latest, windows-latest, macos-latest, macos-13 ] # macos-13 for x86_x64 arch
+        framework: [ net8.0, net9.0 ]
         include:
           - os: windows-latest
             framework: net462
@@ -40,8 +40,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup .NET SDK
+      - name: Setup .NET SDK v9.0.x
         uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
       - name: Create NuGet packages
         shell: pwsh
         run: |
