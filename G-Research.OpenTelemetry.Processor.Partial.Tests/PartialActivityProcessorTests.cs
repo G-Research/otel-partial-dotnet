@@ -77,9 +77,9 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
             processor.OnStart(activity);
 
             Assert.Single(exportedLogs);
-            Thread.Sleep(HeartbeatIntervalMilliseconds + 100);
+            Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatIntervalMilliseconds/2);
             Assert.Equal(2, exportedLogs.Count);
-            Thread.Sleep(HeartbeatIntervalMilliseconds + 100);
+            Thread.Sleep(HeartbeatIntervalMilliseconds);
             Assert.Equal(3, exportedLogs.Count);
         }
     }
