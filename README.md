@@ -28,7 +28,7 @@ The publishing part of the workflow is triggered when a new tag is pushed to the
 Checklist:
 - Bump the version in `G-Research.OpenTelemetry.Processor.Partial.csproj` via pull request
 - Create a tag on `master` with the format `vX.Y.Z` and push it
-- Review the workflow approval request - the tag should point to a commit on the `master` branch!
+- Review the workflow approval request - the tag should point to a commit on the `main` branch!
 - Success
 
 Link to NuGet Gallery: https://www.nuget.org/packages/G-Research.OpenTelemetry.Processor.Partial
