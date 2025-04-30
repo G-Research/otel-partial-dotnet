@@ -22,9 +22,9 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private BaseExporter<LogRecord> logExporter;
 
-    private static MethodInfo WriteTraceDataMethod;
-    private static ConstructorInfo LogRecordConstructor;
-    private static object SdkLimitOptions;
+    private static MethodInfo WriteTraceDataMethod = default!;
+    private static ConstructorInfo LogRecordConstructor = default!;
+    private static object SdkLimitOptions = default!;
 
     public PartialActivityProcessor(
         BaseExporter<LogRecord> logExporter,
