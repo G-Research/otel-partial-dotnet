@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Reflection;
+using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 
@@ -12,6 +12,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private int heartbeatIntervalMilliseconds;
     private Thread exporterThread;
     private ManualResetEvent shutdownTrigger;
+    private readonly ILogger<PartialActivityProcessor> logger;
 
     private ConcurrentDictionary<ActivitySpanId, Activity> activeActivities;
     private ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>> endedActivities;
@@ -22,14 +23,24 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private BaseExporter<LogRecord> logExporter;
 
-    private static MethodInfo WriteTraceDataMethod = default!;
-    private static ConstructorInfo LogRecordConstructor = default!;
-    private static object SdkLimitOptions = default!;
-
     public PartialActivityProcessor(
         BaseExporter<LogRecord> logExporter,
         int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds)
     {
+        // Configure OpenTelemetry logging to use the provided logExporter
+        var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.ClearProviders();
+            builder.AddOpenTelemetry(options =>
+            {
+                // TODO should SimpleLogRecordExportProcessor be shut down?
+                options.IncludeScopes = true;
+                options.AddProcessor(new SimpleLogRecordExportProcessor(logExporter));
+            });
+        });
+
+        logger = loggerFactory.CreateLogger<PartialActivityProcessor>();
+
 #if NET
         ArgumentNullException.ThrowIfNull(logExporter);
 #else
@@ -54,10 +65,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         endedActivities = new ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>>();
 
         shutdownTrigger = new ManualResetEvent(false);
-
-        // Access OpenTelemetry internals as soon as possible to fail fast rather than waiting for the first heartbeat
-        AccessOpenTelemetryInternals(out WriteTraceDataMethod, out LogRecordConstructor,
-            out SdkLimitOptions);
 
         exporterThread = new Thread(ExporterProc)
         {
@@ -96,18 +103,26 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
         foreach (var keyValuePair in activeActivities)
         {
-            var logRecord = GetLogRecord(keyValuePair.Value, GetHeartbeatLogRecordAttributes());
-            logExporter.Export(new Batch<LogRecord>(logRecord));
+            using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
+            {
+                // TODO use keyValuePair here
+                logger.LogInformation("log body");
+            }
         }
     }
 
     public override void OnStart(Activity data)
     {
-        var logRecord = GetLogRecord(data, GetHeartbeatLogRecordAttributes());
-        logExporter.Export(new Batch<LogRecord>(logRecord));
+        using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
+        {
+            // TODO use data here
+            logger.LogInformation("log body");
+        }
+
         activeActivities[data.SpanId] = data;
     }
 
+    /*
     private static LogRecord GetLogRecord(
         Activity data,
         List<KeyValuePair<string, object?>> logRecordAttributesToBeAdded)
@@ -135,61 +150,16 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
         return logRecord;
     }
-
-    private static void AccessOpenTelemetryInternals(out MethodInfo writeTraceDataMethod,
-        out ConstructorInfo logRecordConstructor, out object sdkLimitOptions)
-    {
-        var sdkLimitOptionsType = Type.GetType(
-            "OpenTelemetry.Exporter.OpenTelemetryProtocol.Implementation.SdkLimitOptions, OpenTelemetry.Exporter.OpenTelemetryProtocol",
-            true);
-
-        if (sdkLimitOptionsType == null)
-        {
-            throw new InvalidOperationException("Failed to get the type 'SdkLimitOptions'.");
-        }
-
-        sdkLimitOptions = Activator.CreateInstance(sdkLimitOptionsType, nonPublic: true) ??
-                          throw new InvalidOperationException(
-                              "Failed to create an instance of 'SdkLimitOptions'.");
-
-        var protobufOtlpTraceSerializerType = Type.GetType(
-            "OpenTelemetry.Exporter.OpenTelemetryProtocol.Implementation.Serializer.ProtobufOtlpTraceSerializer, OpenTelemetry.Exporter.OpenTelemetryProtocol",
-            true);
-
-        if (protobufOtlpTraceSerializerType == null)
-        {
-            throw new InvalidOperationException(
-                "Failed to get the type 'ProtobufOtlpTraceSerializer'.");
-        }
-
-        writeTraceDataMethod =
-            protobufOtlpTraceSerializerType.GetMethod("WriteTraceData",
-                BindingFlags.NonPublic | BindingFlags.Static) ??
-            throw new InvalidOperationException("Failed to get the method 'WriteTraceData'.");
-
-        if (writeTraceDataMethod == null)
-        {
-            throw new InvalidOperationException("Failed to get the method 'WriteTraceData'.");
-        }
-
-        var logRecordType = Type.GetType("OpenTelemetry.Logs.LogRecord, OpenTelemetry", true);
-
-        if (logRecordType == null)
-        {
-            throw new InvalidOperationException("Failed to get the type 'LogRecord'.");
-        }
-
-        logRecordConstructor = logRecordType.GetConstructor(
-                                   BindingFlags.NonPublic | BindingFlags.Instance, null,
-                                   Type.EmptyTypes, null) ??
-                               throw new InvalidOperationException(
-                                   "Failed to get the constructor of 'LogRecord'.");
-    }
+    */
 
     public override void OnEnd(Activity data)
     {
-        var logRecord = GetLogRecord(data, GetStopLogRecordAttributes());
-        logExporter.Export(new Batch<LogRecord>(logRecord));
+        using (logger.BeginScope(GetStopLogRecordAttributes()))
+        {
+            // TODO use data here
+            logger.LogInformation("log body");
+        }
+
         endedActivities.Enqueue(new KeyValuePair<ActivitySpanId, Activity>(data.SpanId, data));
     }
 
@@ -225,20 +195,18 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         shutdownTrigger.Dispose();
     }
 
-    private static List<KeyValuePair<string, object?>> GetLogRecordAttributes() =>
-    [
-        new("telemetry.logs.cluster", "partial"),
-        new("telemetry.logs.project", "span"),
-    ];
+    private Dictionary<string, object> GetHeartbeatLogRecordAttributes() => new()
+    {
+        ["partial.event"] = "heartbeat",
+        ["partial.frequency"] = $"{heartbeatIntervalMilliseconds}ms",
+        ["telemetry.logs.cluster"] = "partial",
+        ["telemetry.logs.project"] = "span"
+    };
 
-    private List<KeyValuePair<string, object?>> GetHeartbeatLogRecordAttributes() =>
-    [
-        new("partial.event", "heartbeat"),
-        new("partial.frequency", heartbeatIntervalMilliseconds + "ms")
-    ];
-
-    private static List<KeyValuePair<string, object?>> GetStopLogRecordAttributes() =>
-    [
-        new("partial.event", "stop"),
-    ];
+    private static Dictionary<string, object> GetStopLogRecordAttributes() => new()
+    {
+        ["partial.event"] = "stop",
+        ["telemetry.logs.cluster"] = "partial",
+        ["telemetry.logs.project"] = "span"
+    };
 }
