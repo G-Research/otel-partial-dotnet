@@ -21,21 +21,24 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     public IReadOnlyCollection<KeyValuePair<ActivitySpanId, Activity>> EndedActivities =>
         endedActivities;
 
-    private BaseExporter<LogRecord> logExporter;
+    private readonly BaseExporter<LogRecord> logExporter;
+    private readonly BaseProcessor<LogRecord> logProcessor;
 
     public PartialActivityProcessor(
         BaseExporter<LogRecord> logExporter,
         int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds)
     {
+        this.logExporter = logExporter;
+        logProcessor = new SimpleLogRecordExportProcessor(logExporter);
+
         // Configure OpenTelemetry logging to use the provided logExporter
         var loggerFactory = LoggerFactory.Create(builder =>
         {
             builder.ClearProviders();
             builder.AddOpenTelemetry(options =>
             {
-                // TODO should SimpleLogRecordExportProcessor be shut down?
                 options.IncludeScopes = true;
-                options.AddProcessor(new SimpleLogRecordExportProcessor(logExporter));
+                options.AddProcessor(logProcessor);
             });
         });
 
@@ -105,8 +108,8 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
             {
-                // TODO use keyValuePair here
-                logger.LogInformation("log body");
+                logger.LogInformation(ActivitySpec.Json(new ActivitySpec(keyValuePair.Value,
+                    ActivitySpec.Signal.Heartbeat)));
             }
         }
     }
@@ -115,49 +118,19 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     {
         using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
         {
-            // TODO use data here
-            logger.LogInformation("log body");
+            logger.LogInformation(
+                ActivitySpec.Json(new ActivitySpec(data, ActivitySpec.Signal.Heartbeat)));
         }
 
         activeActivities[data.SpanId] = data;
     }
 
-    /*
-    private static LogRecord GetLogRecord(
-        Activity data,
-        List<KeyValuePair<string, object?>> logRecordAttributesToBeAdded)
-    {
-        var buffer = new byte[750000];
-
-        var result = WriteTraceDataMethod.Invoke(
-            null,
-            [buffer, 0, SdkLimitOptions, null!, new Batch<Activity>(data)]);
-        var writePosition = result as int? ?? 0; // Use a default value if null
-
-        var logRecord = (LogRecord)LogRecordConstructor.Invoke(null);
-        logRecord.Timestamp = DateTime.UtcNow;
-        logRecord.TraceId = data.TraceId;
-        logRecord.SpanId = data.SpanId;
-        logRecord.TraceFlags = ActivityTraceFlags.None;
-        logRecord.Body = Convert.ToBase64String(buffer, 0, writePosition);
-
-        // Severity = LogRecordSeverity.Info,
-        // SeverityText = "Info",
-
-        var logRecordAttributes = GetLogRecordAttributes();
-        logRecordAttributes.AddRange(logRecordAttributesToBeAdded);
-        logRecord.Attributes = logRecordAttributes;
-
-        return logRecord;
-    }
-    */
-
     public override void OnEnd(Activity data)
     {
         using (logger.BeginScope(GetStopLogRecordAttributes()))
         {
-            // TODO use data here
-            logger.LogInformation("log body");
+            logger.LogInformation(
+                ActivitySpec.Json(new ActivitySpec(data, ActivitySpec.Signal.Stop)));
         }
 
         endedActivities.Enqueue(new KeyValuePair<ActivitySpanId, Activity>(data.SpanId, data));
@@ -178,15 +151,16 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             case Timeout.Infinite:
                 exporterThread.Join();
-                return logExporter.Shutdown();
+                return logExporter.Shutdown() && logProcessor.Shutdown();
             case 0:
-                return logExporter.Shutdown(0);
+                return logExporter.Shutdown(0) && logProcessor.Shutdown(0);
         }
 
         var sw = Stopwatch.StartNew();
         exporterThread.Join(timeoutMilliseconds);
         var timeout = timeoutMilliseconds - sw.ElapsedMilliseconds;
-        return logExporter.Shutdown((int)Math.Max(timeout, 0));
+        return logExporter.Shutdown((int)Math.Max(timeout, 0)) &&
+               logProcessor.Shutdown((int)Math.Max(timeout, 0));
     }
 
     protected override void Dispose(bool disposing)
