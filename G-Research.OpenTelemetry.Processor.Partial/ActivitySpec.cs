@@ -57,7 +57,7 @@ namespace GR.OpenTelemetry.Processor.Partial
         {
             return JsonSerializer.Serialize(activitySpec, new JsonSerializerOptions
             {
-                PropertyNamingPolicy = new SnakeCaseNamingPolicy(),
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
                 WriteIndented = true, // For pretty printing
                 Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // To allow special characters
             });
@@ -75,16 +75,5 @@ namespace GR.OpenTelemetry.Processor.Partial
         public string Name { get; set; }
         public string Timestamp { get; set; }
         public Dictionary<string, object> Attributes { get; set; }
-    }
-
-    public class SnakeCaseNamingPolicy : JsonNamingPolicy
-    {
-        public override string ConvertName(string name)
-        {
-            return string.Concat(
-                name.Select<char, object>((ch, i) =>
-                    i > 0 && char.IsUpper(ch) ? "_" + char.ToLower(ch) : char.ToLower(ch))
-            );
-        }
     }
 }

@@ -28,6 +28,14 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         BaseExporter<LogRecord> logExporter,
         int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds)
     {
+#if NET
+        ArgumentNullException.ThrowIfNull(logExporter);
+#else
+        if (logExporter == null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(logExporter));
+        }
+#endif
         this.logExporter = logExporter;
         logProcessor = new SimpleLogRecordExportProcessor(logExporter);
 
@@ -43,16 +51,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         });
 
         logger = loggerFactory.CreateLogger<PartialActivityProcessor>();
-
-#if NET
-        ArgumentNullException.ThrowIfNull(logExporter);
-#else
-        if (logExporter == null)
-        {
-            throw new ArgumentOutOfRangeException(nameof(logExporter));
-        }
-#endif
-        this.logExporter = logExporter;
+        loggerFactory.Dispose();
 
 #if NET
         ArgumentOutOfRangeException.ThrowIfLessThan(heartbeatIntervalMilliseconds, 1);
