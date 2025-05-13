@@ -23,6 +23,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private readonly BaseExporter<LogRecord> logExporter;
     private readonly BaseProcessor<LogRecord> logProcessor;
+    private ILoggerFactory loggerFactory;
 
     public PartialActivityProcessor(
         BaseExporter<LogRecord> logExporter,
@@ -40,7 +41,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         logProcessor = new SimpleLogRecordExportProcessor(logExporter);
 
         // Configure OpenTelemetry logging to use the provided logExporter
-        var loggerFactory = LoggerFactory.Create(builder =>
+        loggerFactory = LoggerFactory.Create(builder =>
         {
             builder.ClearProviders();
             builder.AddOpenTelemetry(options =>
@@ -51,7 +52,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         });
 
         logger = loggerFactory.CreateLogger<PartialActivityProcessor>();
-        loggerFactory.Dispose();
 
 #if NET
         ArgumentOutOfRangeException.ThrowIfLessThan(heartbeatIntervalMilliseconds, 1);
@@ -107,7 +107,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
             {
-                logger.LogInformation(ActivitySpec.Json(new ActivitySpec(keyValuePair.Value,
+                logger.LogInformation(ActivitySpec.Base64(new ActivitySpec(keyValuePair.Value,
                     ActivitySpec.Signal.Heartbeat)));
             }
         }
@@ -118,7 +118,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
         {
             logger.LogInformation(
-                ActivitySpec.Json(new ActivitySpec(data, ActivitySpec.Signal.Heartbeat)));
+                ActivitySpec.Base64(new ActivitySpec(data, ActivitySpec.Signal.Heartbeat)));
         }
 
         activeActivities[data.SpanId] = data;
@@ -129,7 +129,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         using (logger.BeginScope(GetStopLogRecordAttributes()))
         {
             logger.LogInformation(
-                ActivitySpec.Json(new ActivitySpec(data, ActivitySpec.Signal.Stop)));
+                ActivitySpec.Base64(new ActivitySpec(data, ActivitySpec.Signal.Stop)));
         }
 
         endedActivities.Enqueue(new KeyValuePair<ActivitySpanId, Activity>(data.SpanId, data));
@@ -166,19 +166,23 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     {
         base.Dispose(disposing);
         shutdownTrigger.Dispose();
+        logProcessor.Dispose();
+        loggerFactory.Dispose();
     }
 
     private Dictionary<string, object> GetHeartbeatLogRecordAttributes() => new()
     {
         ["partial.event"] = "heartbeat",
         ["partial.frequency"] = $"{heartbeatIntervalMilliseconds}ms",
+        ["partial.body.type"] = "json",
         ["telemetry.logs.cluster"] = "partial",
-        ["telemetry.logs.project"] = "span"
+        ["telemetry.logs.project"] = "span",
     };
 
     private static Dictionary<string, object> GetStopLogRecordAttributes() => new()
     {
         ["partial.event"] = "stop",
+        ["partial.body.type"] = "json",
         ["telemetry.logs.cluster"] = "partial",
         ["telemetry.logs.project"] = "span"
     };

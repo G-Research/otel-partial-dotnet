@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
@@ -53,7 +54,14 @@ namespace GR.OpenTelemetry.Processor.Partial
                 CultureInfo.InvariantCulture) + " +0000 UTC";
         }
 
-        public static string Json(ActivitySpec activitySpec)
+        public static string Base64(ActivitySpec activitySpec)
+        {
+            var json = Json(activitySpec);
+
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
+        }
+
+        private static string Json(ActivitySpec activitySpec)
         {
             return JsonSerializer.Serialize(activitySpec, new JsonSerializerOptions
             {
@@ -72,8 +80,8 @@ namespace GR.OpenTelemetry.Processor.Partial
 
     public class Event
     {
-        public string Name { get; set; }
-        public string Timestamp { get; set; }
-        public Dictionary<string, object> Attributes { get; set; }
+        public string? Name { get; set; }
+        public string? Timestamp { get; set; }
+        public Dictionary<string, object>? Attributes { get; set; }
     }
 }

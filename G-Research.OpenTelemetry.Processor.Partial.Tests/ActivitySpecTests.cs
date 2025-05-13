@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Xunit;
 
 namespace GR.OpenTelemetry.Processor.Partial.Tests
@@ -40,7 +41,9 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
             activity.Stop();
 
             var activitySpec = new ActivitySpec(activity, ActivitySpec.Signal.Stop);
-            var json = ActivitySpec.Json(activitySpec);
+            var json =
+                Encoding.UTF8.GetString(
+                    Convert.FromBase64String(ActivitySpec.Base64(activitySpec)));
             
             Assert.Contains("\"name\":", json);
             Assert.Contains("\"context\": {", json);
