@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
@@ -54,22 +53,13 @@ namespace GR.OpenTelemetry.Processor.Partial
                 CultureInfo.InvariantCulture) + " +0000 UTC";
         }
 
-        public static string Base64(ActivitySpec activitySpec)
-        {
-            var json = Json(activitySpec);
-
-            return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
-        }
-
-        private static string Json(ActivitySpec activitySpec)
-        {
-            return JsonSerializer.Serialize(activitySpec, new JsonSerializerOptions
+        public static string Json(ActivitySpec activitySpec) =>
+            JsonSerializer.Serialize(activitySpec, new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
                 WriteIndented = true, // For pretty printing
                 Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // To allow special characters
             });
-        }
     }
 
     public class Context(ActivityContext activityContext)

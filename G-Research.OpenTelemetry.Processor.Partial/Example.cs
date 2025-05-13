@@ -45,7 +45,7 @@ public class Example
         {
             activity1?.SetTag("tag", "activity");
             Console.WriteLine("sleeping inside activity");
-            Thread.Sleep(10000);
+            Thread.Sleep(20000);
         }
 
         Console.WriteLine("sleeping outside activity");

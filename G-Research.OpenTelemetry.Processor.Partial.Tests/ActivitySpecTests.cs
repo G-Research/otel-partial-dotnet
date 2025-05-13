@@ -41,9 +41,7 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
             activity.Stop();
 
             var activitySpec = new ActivitySpec(activity, ActivitySpec.Signal.Stop);
-            var json =
-                Encoding.UTF8.GetString(
-                    Convert.FromBase64String(ActivitySpec.Base64(activitySpec)));
+            var json = ActivitySpec.Json(activitySpec);
             
             Assert.Contains("\"name\":", json);
             Assert.Contains("\"context\": {", json);
