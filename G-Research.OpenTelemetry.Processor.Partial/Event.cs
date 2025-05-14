@@ -13,10 +13,7 @@ public class Event
         {
             KeyValue keyValue = new KeyValue();
             keyValue.Key = activityEventTag.Key;
-            
-            AnyValue anyValue = new AnyValue();
-            anyValue.Value = activityEventTag.Value?.ToString();
-            keyValue.Value = anyValue;
+            keyValue.Value = activityEventTag.Value?.ToString();
             Attributes.Add(keyValue);
         }
     }

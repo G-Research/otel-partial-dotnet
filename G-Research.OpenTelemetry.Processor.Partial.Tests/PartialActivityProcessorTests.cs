@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
-using OpenTelemetry.Resources;
 using Xunit;
 
 namespace GR.OpenTelemetry.Processor.Partial.Tests
@@ -16,11 +15,7 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
         public PartialActivityProcessorTests()
         {
             logExporter = new InMemoryExporter<LogRecord>(exportedLogs);
-            global::OpenTelemetry.Resources.Resource resource = ResourceBuilder.CreateEmpty()
-                .AddAttributes([new KeyValuePair<string, object>("key1", "value1")]).Build();
-
-            processor =
-                new PartialActivityProcessor(logExporter, resource, HeartbeatIntervalMilliseconds);
+            processor = new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds);
         }
 
         [Fact]

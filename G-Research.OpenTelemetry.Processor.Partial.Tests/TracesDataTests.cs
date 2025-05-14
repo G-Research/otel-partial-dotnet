@@ -13,8 +13,7 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
             activity.Start();
             activity.Stop();
 
-            var tracesData = new TracesData(activity, ResourceBuilder.CreateDefault().Build(),
-                TracesData.Signal.Stop);
+            var tracesData = new TracesData(activity, TracesData.Signal.Stop);
             var json = SpecHelper.Json(tracesData);
 
             // TODO fix this

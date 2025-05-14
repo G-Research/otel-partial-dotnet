@@ -44,7 +44,7 @@ public class Example
             .AddSource("activitySource")
             .SetResourceBuilder(resourceBuilder)
             .AddProcessor(new PartialActivityProcessor(logExporter: otlpLogExporter,
-                heartbeatIntervalMilliseconds: 1000, resource: resourceBuilder.Build()))
+                heartbeatIntervalMilliseconds: 1000))
             .AddProcessor(new SimpleActivityExportProcessor(otlpExporter))
             .Build();
 

@@ -3,7 +3,6 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
-using OpenTelemetry.Resources;
 
 namespace GR.OpenTelemetry.Processor.Partial;
 
@@ -23,12 +22,10 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         endedActivities;
 
     private readonly BaseExporter<LogRecord> logExporter;
-    private readonly global::OpenTelemetry.Resources.Resource resource;
     private readonly BaseProcessor<LogRecord> logProcessor;
     private ILoggerFactory loggerFactory;
 
     public PartialActivityProcessor(BaseExporter<LogRecord> logExporter,
-        global::OpenTelemetry.Resources.Resource resource,
         int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds)
     {
 #if NET
@@ -55,12 +52,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
         logger = loggerFactory.CreateLogger<PartialActivityProcessor>();
 
-        if (resource == null)
-        {
-            this.resource = ResourceBuilder.CreateDefault().Build();
-        }
-        this.resource = resource;
-        
         if (heartbeatIntervalMilliseconds < 1)
         {
             throw new ArgumentOutOfRangeException(nameof(heartbeatIntervalMilliseconds));
@@ -111,7 +102,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
             {
-                logger.LogInformation(SpecHelper.Json(new TracesData(keyValuePair.Value, resource,
+                logger.LogInformation(SpecHelper.Json(new TracesData(keyValuePair.Value,
                     TracesData.Signal.Heartbeat)));
             }
         }
@@ -122,7 +113,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
         {
             logger.LogInformation(
-                SpecHelper.Json(new TracesData(data, resource, TracesData.Signal.Heartbeat)));
+                SpecHelper.Json(new TracesData(data, TracesData.Signal.Heartbeat)));
         }
 
         activeActivities[data.SpanId] = data;
@@ -133,7 +124,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         using (logger.BeginScope(GetStopLogRecordAttributes()))
         {
             logger.LogInformation(
-                SpecHelper.Json(new TracesData(data, resource, TracesData.Signal.Stop)));
+                SpecHelper.Json(new TracesData(data, TracesData.Signal.Stop)));
         }
 
         endedActivities.Enqueue(new KeyValuePair<ActivitySpanId, Activity>(data.SpanId, data));

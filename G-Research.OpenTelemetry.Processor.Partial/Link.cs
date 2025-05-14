@@ -14,10 +14,7 @@ public class Link
             {
                 KeyValue keyValue = new KeyValue();
                 keyValue.Key = activityLinkTag.Key;
-
-                AnyValue anyValue = new AnyValue();
-                anyValue.Value = activityLinkTag.Value?.ToString();
-                keyValue.Value = anyValue;
+                keyValue.Value = activityLinkTag.Value?.ToString();
                 Attributes.Add(keyValue);
             }
 

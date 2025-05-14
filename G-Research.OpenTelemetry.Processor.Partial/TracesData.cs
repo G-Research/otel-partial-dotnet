@@ -13,9 +13,8 @@ public class TracesData
     }
     
     
-    public TracesData(Activity activity, global::OpenTelemetry.Resources.Resource resource,
-        Signal signal)
+    public TracesData(Activity activity, Signal signal)
     {
-        ResourceSpans.Add(new ResourceSpans(activity, resource, signal));
+        ResourceSpans.Add(new ResourceSpans(activity, signal));
     }
 }

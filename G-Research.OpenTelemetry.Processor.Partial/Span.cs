@@ -38,11 +38,7 @@ public class Span
         {
             KeyValue keyValue = new KeyValue();
             keyValue.Key = activityTagObject.Key;
-            
-            AnyValue anyValue = new AnyValue();
-            anyValue.Value = activityTagObject.Value?.ToString();
-            keyValue.Value = anyValue;
-            
+            keyValue.Value = activityTagObject.Value?.ToString();
             Attributes.Add(keyValue);
         }
         
