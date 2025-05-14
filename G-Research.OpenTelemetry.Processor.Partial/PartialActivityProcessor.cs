@@ -53,14 +53,11 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
         logger = loggerFactory.CreateLogger<PartialActivityProcessor>();
 
-#if NET
-        ArgumentOutOfRangeException.ThrowIfLessThan(heartbeatIntervalMilliseconds, 1);
-#else
         if (heartbeatIntervalMilliseconds < 1)
         {
             throw new ArgumentOutOfRangeException(nameof(heartbeatIntervalMilliseconds));
         }
-#endif
+
         this.heartbeatIntervalMilliseconds = heartbeatIntervalMilliseconds;
 
         activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
