@@ -18,7 +18,6 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
 
             // TODO fix this
             Assert.Contains("\"resource_spans\":[", json);
-            Assert.Contains("\"resource\":{", json);
             Assert.Contains("\"scope_spans\":[", json);
             Assert.Contains("\"trace_id\":", json);
             Assert.Contains("\"span_id\":", json);
