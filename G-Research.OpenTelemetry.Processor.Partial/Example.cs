@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace GR.OpenTelemetry.Processor.Partial;
@@ -33,10 +34,17 @@ public class Example
             Endpoint = new Uri("http://localhost:4318/v1/logs")
         });
 
+        var resourceBuilder = ResourceBuilder.CreateDefault().AddAttributes(
+            new Dictionary<string, object>
+            {
+                { "service.name", "service-name-example" },
+            });
+
         var tracerProvider = Sdk.CreateTracerProviderBuilder()
             .AddSource("activitySource")
-            .AddProcessor(new PartialActivityProcessor(otlpLogExporter,
-                heartbeatIntervalMilliseconds: 1000))
+            .SetResourceBuilder(resourceBuilder)
+            .AddProcessor(new PartialActivityProcessor(logExporter: otlpLogExporter,
+                heartbeatIntervalMilliseconds: 1000, resource: resourceBuilder.Build()))
             .AddProcessor(new SimpleActivityExportProcessor(otlpExporter))
             .Build();
 
