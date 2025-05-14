@@ -107,8 +107,8 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
             {
-                logger.LogInformation(ActivitySpec.Json(new ActivitySpec(keyValuePair.Value,
-                    ActivitySpec.Signal.Heartbeat)));
+                logger.LogInformation(SpecHelper.Json(new TracesData(keyValuePair.Value,
+                    TracesData.Signal.Heartbeat)));
             }
         }
     }
@@ -118,7 +118,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
         {
             logger.LogInformation(
-                ActivitySpec.Json(new ActivitySpec(data, ActivitySpec.Signal.Heartbeat)));
+                SpecHelper.Json(new TracesData(data, TracesData.Signal.Heartbeat)));
         }
 
         activeActivities[data.SpanId] = data;
@@ -129,7 +129,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         using (logger.BeginScope(GetStopLogRecordAttributes()))
         {
             logger.LogInformation(
-                ActivitySpec.Json(new ActivitySpec(data, ActivitySpec.Signal.Stop)));
+                SpecHelper.Json(new TracesData(data, TracesData.Signal.Stop)));
         }
 
         endedActivities.Enqueue(new KeyValuePair<ActivitySpanId, Activity>(data.SpanId, data));
