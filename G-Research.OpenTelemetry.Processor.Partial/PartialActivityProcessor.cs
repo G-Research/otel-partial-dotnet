@@ -171,7 +171,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     {
         ["partial.event"] = "heartbeat",
         ["partial.frequency"] = $"{heartbeatIntervalMilliseconds}ms",
-        ["partial.body.type"] = "json",
+        ["partial.body.type"] = "json/v1",
         ["telemetry.logs.cluster"] = "partial",
         ["telemetry.logs.project"] = "span",
     };
