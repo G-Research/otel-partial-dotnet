@@ -35,10 +35,10 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
             );
 
             
-            var tags = new List<KeyValuePair<string, object>>
+            var tags = new List<KeyValuePair<string, object?>>
             {
-                new KeyValuePair<string, object>("key1", "value1"),
-                new KeyValuePair<string, object>("key2", 123)
+                new KeyValuePair<string, object?>("key1", "value1"),
+                new KeyValuePair<string, object?>("key2", 123)
             };
             ActivityTagsCollection tagsCollection = new ActivityTagsCollection(tags);
 
