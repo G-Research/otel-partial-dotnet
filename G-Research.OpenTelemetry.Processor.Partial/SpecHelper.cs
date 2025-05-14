@@ -16,16 +16,15 @@ public class SpecHelper
                     .WhenWritingNull
         });
 
+    private const long UnixEpochTicks = 719162L /*Number of days from 1/1/0001 to 12/31/1969*/ * 10000 * 1000 * 60 * 60 * 24; /* Ticks per day.*/
+    
     public static ulong ToUnixTimeNanoseconds(DateTime dateTime)
     {
         dateTime = dateTime.ToUniversalTime();
 
-        DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        long ticksSinceEpoch = dateTime.Ticks - UnixEpochTicks;
 
-        // Ticks since epoch (1 tick = 100ns)
-        long ticksSinceEpoch = dateTime.Ticks - epoch.Ticks;
-
-        // Convert to nanoseconds (multiply by 100)
-        return (ulong)(ticksSinceEpoch * 100);
+        // Convert to nanoseconds
+        return (ulong)(ticksSinceEpoch * TimeSpan.NanosecondsPerTick);
     }
 }
