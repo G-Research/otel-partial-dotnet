@@ -10,7 +10,7 @@ public class InstrumentationScope
         
         Version = activity.Source.Version;
 
-        /* TODO fix this after otel version downgrade
+        /* TODO enable this after otel upgrade (> 1.9.0)
         activity.Source.Tags?.ToList().ForEach(tag =>
         {
             KeyValue keyValue = new KeyValue();
@@ -26,7 +26,7 @@ public class InstrumentationScope
 
     public string? Name { get; set; }
     public string? Version { get; set; }
-    // TODO fix this after otel version downgrade
+    // TODO enable this after otel upgrade (> 1.9.0)
     public List<KeyValue> Attributes { get; set; } = [];
     // TODO missing mapping?
     public uint? DroppedAttributesCount { get; set; }
