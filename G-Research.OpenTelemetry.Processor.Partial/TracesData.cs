@@ -16,6 +16,5 @@ public class TracesData
     public TracesData(Activity activity, Signal signal)
     {
         ResourceSpans.Add(new ResourceSpans(activity, signal));
-
     }
 }

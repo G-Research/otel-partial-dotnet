@@ -172,15 +172,11 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         ["partial.event"] = "heartbeat",
         ["partial.frequency"] = $"{heartbeatIntervalMilliseconds}ms",
         ["partial.body.type"] = "json/v1",
-        ["telemetry.logs.cluster"] = "partial",
-        ["telemetry.logs.project"] = "span",
     };
 
     private static Dictionary<string, object> GetStopLogRecordAttributes() => new()
     {
         ["partial.event"] = "stop",
-        ["partial.body.type"] = "json",
-        ["telemetry.logs.cluster"] = "partial",
-        ["telemetry.logs.project"] = "span"
+        ["partial.body.type"] = "json/v1",
     };
 }

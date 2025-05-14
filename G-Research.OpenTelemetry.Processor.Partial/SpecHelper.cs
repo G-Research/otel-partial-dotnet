@@ -9,7 +9,7 @@ public class SpecHelper
         JsonSerializer.Serialize(tracesData, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            WriteIndented = true, // For pretty printing
+            WriteIndented = false, // For pretty printing
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, // To allow special characters
             DefaultIgnoreCondition =
                 System.Text.Json.Serialization.JsonIgnoreCondition
