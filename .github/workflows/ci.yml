@@ -30,6 +30,11 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+      - name: Setup .NET SDK v6.0.x (if needed)
+        if: ${{ matrix.framework == 'net6.0' }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x    
       - name: Run tests
         shell: bash
         run: dotnet test --configuration=Release --framework=${{ matrix.framework }}
