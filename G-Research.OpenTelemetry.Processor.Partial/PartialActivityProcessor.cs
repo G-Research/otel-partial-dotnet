@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
 
 namespace GR.OpenTelemetry.Processor.Partial;
 
@@ -26,6 +27,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private ILoggerFactory loggerFactory;
 
     public PartialActivityProcessor(BaseExporter<LogRecord> logExporter,
+        ResourceBuilder? resourceBuilder,
         int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds)
     {
 #if NET
@@ -39,12 +41,15 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         this.logExporter = logExporter;
         logProcessor = new SimpleLogRecordExportProcessor(logExporter);
 
+        var resourceBuilderTmp = resourceBuilder ?? ResourceBuilder.CreateDefault();
+
         // Configure OpenTelemetry logging to use the provided logExporter
         loggerFactory = LoggerFactory.Create(builder =>
         {
             builder.ClearProviders();
             builder.AddOpenTelemetry(options =>
             {
+                options.SetResourceBuilder(resourceBuilderTmp);
                 options.IncludeScopes = true;
                 options.AddProcessor(logProcessor);
             });
@@ -56,6 +61,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             throw new ArgumentOutOfRangeException(nameof(heartbeatIntervalMilliseconds));
         }
+
         this.heartbeatIntervalMilliseconds = heartbeatIntervalMilliseconds;
 
         activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();

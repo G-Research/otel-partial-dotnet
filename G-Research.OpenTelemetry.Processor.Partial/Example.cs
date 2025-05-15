@@ -42,9 +42,8 @@ public class Example
 
         var tracerProvider = Sdk.CreateTracerProviderBuilder()
             .AddSource("activitySource")
-            .SetResourceBuilder(resourceBuilder)
             .AddProcessor(new PartialActivityProcessor(logExporter: otlpLogExporter,
-                heartbeatIntervalMilliseconds: 1000))
+                resourceBuilder: resourceBuilder, heartbeatIntervalMilliseconds: 1000))
             .AddProcessor(new SimpleActivityExportProcessor(otlpExporter))
             .Build();
 

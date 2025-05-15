@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
 using Xunit;
 
 namespace GR.OpenTelemetry.Processor.Partial.Tests
@@ -15,7 +16,35 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
         public PartialActivityProcessorTests()
         {
             logExporter = new InMemoryExporter<LogRecord>(exportedLogs);
-            processor = new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds);
+            processor =
+                new PartialActivityProcessor(logExporter, null, HeartbeatIntervalMilliseconds);
+        }
+
+        [Fact]
+        public void Log_ShouldContainDefinedResource()
+        {
+            var resourceBuilder = ResourceBuilder.CreateDefault()
+                .AddAttributes(new Dictionary<string, object>
+                {
+                    { "service.name", "service-name-example" },
+                });
+
+            var resource = resourceBuilder.Build();
+
+            var exporter = new CapturingLogExporter(resource);
+            var processor = new PartialActivityProcessor(exporter, resourceBuilder, 1000);
+
+            var activity = new Activity("TestActivity");
+            activity.Start();
+            processor.OnStart(activity);
+            processor.OnEnd(activity);
+
+            Thread.Sleep(100);
+
+            Assert.NotEmpty(exporter.Exported);
+            var first = exporter.Exported.First();
+            Assert.Contains(first.Resource.Attributes,
+                kvp => kvp.Key == "service.name" && kvp.Value.Equals("service-name-example"));
         }
 
         [Fact]
