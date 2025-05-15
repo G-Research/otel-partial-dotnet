@@ -38,6 +38,7 @@ public class Example
             new Dictionary<string, object>
             {
                 { "service.name", "service-name-example" },
+                { "service.version", "service-version-1.2.3" },
             });
 
         var tracerProvider = Sdk.CreateTracerProviderBuilder()

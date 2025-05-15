@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
 using Xunit;
 
 namespace GR.OpenTelemetry.Processor.Partial.Tests
@@ -9,19 +10,46 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
     {
         private List<LogRecord> exportedLogs = [];
         private InMemoryExporter<LogRecord> logExporter;
-        private PartialActivityProcessor processor;
+        private PartialActivityProcessor _processor;
         private const int HeartbeatIntervalMilliseconds = 1000;
 
         public PartialActivityProcessorTests()
         {
             logExporter = new InMemoryExporter<LogRecord>(exportedLogs);
-            processor = new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds);
+            _processor = new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds);
+        }
+
+        [Fact]
+        public void Log_ShouldContainDefinedResource()
+        {
+            var resourceBuilder = ResourceBuilder.CreateDefault()
+                .AddAttributes(new Dictionary<string, object>
+                {
+                    { "service.name", "service-name-example" },
+                });
+
+            var resource = resourceBuilder.Build();
+
+            var exporter = new CapturingLogExporter(resource);
+            var processor = new PartialActivityProcessor(exporter, 1000);
+
+            var activity = new Activity("TestActivity");
+            activity.Start();
+            processor.OnStart(activity);
+            processor.OnEnd(activity);
+
+            Thread.Sleep(100);
+
+            Assert.NotEmpty(exporter.Exported);
+            var first = exporter.Exported.First();
+            Assert.Contains(first.Resource.Attributes,
+                kvp => kvp.Key == "service.name" && kvp.Value.Equals("service-name-example"));
         }
 
         [Fact]
         public void Constructor_ShouldInitializeFields()
         {
-            Assert.NotNull(processor);
+            Assert.NotNull(_processor);
         }
 
         [Fact]
@@ -29,9 +57,9 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
         {
             var activity = new Activity("TestActivity");
 
-            processor.OnStart(activity);
+            _processor.OnStart(activity);
 
-            Assert.Contains(activity.SpanId, processor.ActiveActivities);
+            Assert.Contains(activity.SpanId, _processor.ActiveActivities);
             Assert.Single(exportedLogs);
         }
 
@@ -40,13 +68,13 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
         {
             var activity = new Activity("TestActivity");
 
-            processor.OnStart(activity);
+            _processor.OnStart(activity);
 
-            processor.OnEnd(activity);
+            _processor.OnEnd(activity);
 
-            Assert.Contains(activity.SpanId, processor.ActiveActivities);
+            Assert.Contains(activity.SpanId, _processor.ActiveActivities);
             Assert.Contains(new KeyValuePair<ActivitySpanId, Activity>(activity.SpanId, activity),
-                processor.EndedActivities);
+                _processor.EndedActivities);
             Assert.Equal(2, exportedLogs.Count);
         }
 
@@ -55,16 +83,16 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
         {
             var activity = new Activity("TestActivity");
 
-            processor.OnStart(activity);
+            _processor.OnStart(activity);
 
-            processor.OnEnd(activity);
+            _processor.OnEnd(activity);
 
             Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatIntervalMilliseconds / 2);
 
-            Assert.DoesNotContain(activity.SpanId, processor.ActiveActivities);
+            Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
             Assert.DoesNotContain(
                 new KeyValuePair<ActivitySpanId, Activity>(activity.SpanId, activity),
-                processor.EndedActivities);
+                _processor.EndedActivities);
             Assert.Equal(2, exportedLogs.Count);
         }
 
@@ -73,7 +101,7 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
         {
             var activity = new Activity("TestActivity");
 
-            processor.OnStart(activity);
+            _processor.OnStart(activity);
 
             Assert.Single(exportedLogs);
             Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatIntervalMilliseconds / 2);

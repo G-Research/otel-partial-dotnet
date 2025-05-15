@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
 
 namespace GR.OpenTelemetry.Processor.Partial;
 
@@ -12,7 +13,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private int heartbeatIntervalMilliseconds;
     private Thread exporterThread;
     private ManualResetEvent shutdownTrigger;
-    private readonly ILogger<PartialActivityProcessor> logger;
+    private ILogger<PartialActivityProcessor>? logger;
 
     private ConcurrentDictionary<ActivitySpanId, Activity> activeActivities;
     private ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>> endedActivities;
@@ -23,7 +24,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private readonly BaseExporter<LogRecord> logExporter;
     private readonly BaseProcessor<LogRecord> logProcessor;
-    private ILoggerFactory loggerFactory;
+    private ILoggerFactory loggerFactory = null!;
 
     public PartialActivityProcessor(BaseExporter<LogRecord> logExporter,
         int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds)
@@ -39,23 +40,11 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         this.logExporter = logExporter;
         logProcessor = new SimpleLogRecordExportProcessor(logExporter);
 
-        // Configure OpenTelemetry logging to use the provided logExporter
-        loggerFactory = LoggerFactory.Create(builder =>
-        {
-            builder.ClearProviders();
-            builder.AddOpenTelemetry(options =>
-            {
-                options.IncludeScopes = true;
-                options.AddProcessor(logProcessor);
-            });
-        });
-
-        logger = loggerFactory.CreateLogger<PartialActivityProcessor>();
-
         if (heartbeatIntervalMilliseconds < 1)
         {
             throw new ArgumentOutOfRangeException(nameof(heartbeatIntervalMilliseconds));
         }
+
         this.heartbeatIntervalMilliseconds = heartbeatIntervalMilliseconds;
 
         activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
@@ -100,9 +89,9 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
         foreach (var keyValuePair in activeActivities)
         {
-            using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
+            using (logger?.BeginScope(GetHeartbeatLogRecordAttributes()))
             {
-                logger.LogInformation(SpecHelper.Json(new TracesData(keyValuePair.Value,
+                logger?.LogInformation(SpecHelper.Json(new TracesData(keyValuePair.Value,
                     TracesData.Signal.Heartbeat)));
             }
         }
@@ -110,20 +99,43 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public override void OnStart(Activity data)
     {
-        using (logger.BeginScope(GetHeartbeatLogRecordAttributes()))
+        if (logger is null)
         {
-            logger.LogInformation(
+            InitializeLogger();
+        }
+
+        using (logger?.BeginScope(GetHeartbeatLogRecordAttributes()))
+        {
+            logger?.LogInformation(
                 SpecHelper.Json(new TracesData(data, TracesData.Signal.Heartbeat)));
         }
 
         activeActivities[data.SpanId] = data;
     }
 
+    private void InitializeLogger()
+    {
+        // Configure OpenTelemetry logging to use the provided logExporter
+        loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.ClearProviders();
+            builder.AddOpenTelemetry(options =>
+            {
+                options.IncludeScopes = true;
+                options.AddProcessor(logProcessor);
+                options.SetResourceBuilder(ResourceBuilder.CreateEmpty()
+                    .AddAttributes(ParentProvider.GetResource().Attributes));
+            });
+        });
+
+        logger = loggerFactory.CreateLogger<PartialActivityProcessor>();
+    }
+
     public override void OnEnd(Activity data)
     {
-        using (logger.BeginScope(GetStopLogRecordAttributes()))
+        using (logger?.BeginScope(GetStopLogRecordAttributes()))
         {
-            logger.LogInformation(
+            logger?.LogInformation(
                 SpecHelper.Json(new TracesData(data, TracesData.Signal.Stop)));
         }
 
