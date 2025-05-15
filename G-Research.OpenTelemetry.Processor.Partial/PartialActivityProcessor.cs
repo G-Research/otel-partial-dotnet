@@ -14,6 +14,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private Thread exporterThread;
     private ManualResetEvent shutdownTrigger;
     private readonly Lazy<ILogger<PartialActivityProcessor>> logger;
+    private readonly Lazy<ILoggerFactory> loggerFactory;
 
     private ConcurrentDictionary<ActivitySpanId, Activity> activeActivities;
     private ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>> endedActivities;
@@ -24,7 +25,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private readonly BaseExporter<LogRecord> logExporter;
     private readonly BaseProcessor<LogRecord> logProcessor;
-    private ILoggerFactory loggerFactory = null!;
 
     public PartialActivityProcessor(BaseExporter<LogRecord> logExporter,
         int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds)
@@ -39,7 +39,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 #endif
         this.logExporter = logExporter;
         logProcessor = new SimpleLogRecordExportProcessor(logExporter);
-        logger = new Lazy<ILogger<PartialActivityProcessor>>(InitializeLogger);
 
         if (heartbeatIntervalMilliseconds < 1)
         {
@@ -59,6 +58,9 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
             Name = $"OpenTelemetry-{nameof(PartialActivityProcessor)}",
         };
         exporterThread.Start();
+
+        loggerFactory = new Lazy<ILoggerFactory>(CreateLoggerFactory);
+        logger = new Lazy<ILogger<PartialActivityProcessor>>(InitializeLogger);
     }
 
     private void ExporterProc()
@@ -88,9 +90,9 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
             activeActivities.TryRemove(activity.Key, out _);
         }
 
-        foreach (var keyValuePair in activeActivities)
+        using (logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
         {
-            using (logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
+            foreach (var keyValuePair in activeActivities)
             {
                 logger.Value.LogInformation(SpecHelper.Json(new TracesData(keyValuePair.Value,
                     TracesData.Signal.Heartbeat)));
@@ -112,8 +114,12 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private ILogger<PartialActivityProcessor> InitializeLogger()
     {
-        // Configure OpenTelemetry logging to use the provided logExporter
-        loggerFactory = LoggerFactory.Create(builder =>
+        return loggerFactory.Value.CreateLogger<PartialActivityProcessor>();
+    }
+
+    private ILoggerFactory CreateLoggerFactory()
+    {
+        return LoggerFactory.Create(builder =>
         {
             builder.ClearProviders();
             builder.AddOpenTelemetry(options =>
@@ -124,8 +130,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
                     .AddAttributes(ParentProvider.GetResource().Attributes));
             });
         });
-
-        return loggerFactory.CreateLogger<PartialActivityProcessor>();
     }
 
     public override void OnEnd(Activity data)
@@ -171,7 +175,10 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         base.Dispose(disposing);
         shutdownTrigger.Dispose();
         logProcessor.Dispose();
-        loggerFactory.Dispose();
+        if (loggerFactory.IsValueCreated)
+        {
+            loggerFactory.Value.Dispose();
+        }
     }
 
     private Dictionary<string, object> GetHeartbeatLogRecordAttributes() => new()

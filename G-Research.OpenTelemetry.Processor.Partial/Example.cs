@@ -34,16 +34,9 @@ public class Example
             Endpoint = new Uri("http://localhost:4318/v1/logs")
         });
 
-        var resourceBuilder = ResourceBuilder.CreateDefault().AddAttributes(
-            new Dictionary<string, object>
-            {
-                { "service.name", "service-name-example" },
-                { "service.version", "service-version-1.2.3" },
-            });
-
         var tracerProvider = Sdk.CreateTracerProviderBuilder()
             .AddSource("activitySource")
-            .SetResourceBuilder(resourceBuilder)
+            .ConfigureResource(configure => { configure.AddService("Example"); })
             .AddProcessor(new PartialActivityProcessor(logExporter: otlpLogExporter,
                 heartbeatIntervalMilliseconds: 1000))
             .AddProcessor(new SimpleActivityExportProcessor(otlpExporter))
