@@ -22,8 +22,11 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
             Assert.Equal((uint)activity.ActivityTraceFlags, span.Flags);
             Assert.Equal(activity.DisplayName, span.Name);
             Assert.Equal(SpanKind.SpanKindInternal, span.Kind); // Default kind
-            Assert.Equal(SpecHelper.ToUnixTimeNanoseconds(activity.StartTimeUtc), span.StartTimeUnixNano);
-            Assert.Equal(SpecHelper.ToUnixTimeNanoseconds(activity.StartTimeUtc.Add(activity.Duration)), span.EndTimeUnixNano);
+            Assert.Equal(SpecHelper.ToUnixTimeNanoseconds(activity.StartTimeUtc),
+                span.StartTimeUnixNano);
+            Assert.Equal(
+                SpecHelper.ToUnixTimeNanoseconds(activity.StartTimeUtc.Add(activity.Duration)),
+                span.EndTimeUnixNano);
         }
 
         [Fact]
@@ -39,8 +42,10 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
 
             Assert.NotNull(span.Attributes);
             Assert.Equal(2, span.Attributes.Count);
-            Assert.Contains(span.Attributes, attr => attr.Key == "key1" && attr.Value == "value1");
-            Assert.Contains(span.Attributes, attr => attr.Key == "key2" && attr.Value == "123");
+            Assert.Contains(span.Attributes,
+                attr => attr is { Key: "key1", Value.StringValue: "value1" });
+            Assert.Contains(span.Attributes,
+                attr => attr is { Key: "key2", Value.StringValue: "123" });
         }
     }
 }

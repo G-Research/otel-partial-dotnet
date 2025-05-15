@@ -11,9 +11,11 @@ public class Event
         Name = activityEvent.Name;
         foreach (var activityEventTag in activityEvent.Tags)
         {
-            KeyValue keyValue = new KeyValue();
-            keyValue.Key = activityEventTag.Key;
-            keyValue.Value = activityEventTag.Value?.ToString();
+            var keyValue = new KeyValue
+            {
+                Key = activityEventTag.Key,
+                Value = new AnyValue(activityEventTag.Value?.ToString())
+            };
             Attributes.Add(keyValue);
         }
     }
