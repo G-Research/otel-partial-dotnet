@@ -13,7 +13,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private int heartbeatIntervalMilliseconds;
     private Thread exporterThread;
     private ManualResetEvent shutdownTrigger;
-    private ILogger<PartialActivityProcessor>? logger;
+    private readonly Lazy<ILogger<PartialActivityProcessor>> logger;
 
     private ConcurrentDictionary<ActivitySpanId, Activity> activeActivities;
     private ConcurrentQueue<KeyValuePair<ActivitySpanId, Activity>> endedActivities;
@@ -39,6 +39,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 #endif
         this.logExporter = logExporter;
         logProcessor = new SimpleLogRecordExportProcessor(logExporter);
+        logger = new Lazy<ILogger<PartialActivityProcessor>>(InitializeLogger);
 
         if (heartbeatIntervalMilliseconds < 1)
         {
@@ -89,9 +90,9 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
         foreach (var keyValuePair in activeActivities)
         {
-            using (logger?.BeginScope(GetHeartbeatLogRecordAttributes()))
+            using (logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
             {
-                logger?.LogInformation(SpecHelper.Json(new TracesData(keyValuePair.Value,
+                logger.Value.LogInformation(SpecHelper.Json(new TracesData(keyValuePair.Value,
                     TracesData.Signal.Heartbeat)));
             }
         }
@@ -99,21 +100,17 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public override void OnStart(Activity data)
     {
-        if (logger is null)
+        // Access logger.Value to ensure lazy initialization
+        using (logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
         {
-            InitializeLogger();
-        }
-
-        using (logger?.BeginScope(GetHeartbeatLogRecordAttributes()))
-        {
-            logger?.LogInformation(
+            logger.Value.LogInformation(
                 SpecHelper.Json(new TracesData(data, TracesData.Signal.Heartbeat)));
         }
 
         activeActivities[data.SpanId] = data;
     }
 
-    private void InitializeLogger()
+    private ILogger<PartialActivityProcessor> InitializeLogger()
     {
         // Configure OpenTelemetry logging to use the provided logExporter
         loggerFactory = LoggerFactory.Create(builder =>
@@ -128,14 +125,14 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
             });
         });
 
-        logger = loggerFactory.CreateLogger<PartialActivityProcessor>();
+        return loggerFactory.CreateLogger<PartialActivityProcessor>();
     }
 
     public override void OnEnd(Activity data)
     {
-        using (logger?.BeginScope(GetStopLogRecordAttributes()))
+        using (logger.Value.BeginScope(GetStopLogRecordAttributes()))
         {
-            logger?.LogInformation(
+            logger.Value.LogInformation(
                 SpecHelper.Json(new TracesData(data, TracesData.Signal.Stop)));
         }
 
