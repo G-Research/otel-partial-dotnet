@@ -12,6 +12,7 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
 {
     public class PartialActivityProcessorTests : IDisposable
     {
+        private const int HeartbeatIntervalMilliseconds = 1000;
         private readonly List<LogRecord> exportedLogs = new();
         private readonly InMemoryExporter<LogRecord> logExporter;
         private readonly PartialActivityProcessor _processor;
@@ -105,6 +106,70 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
             Assert.NotEmpty(_receivedRequests);
             var firstRequest = _receivedRequests.First();
             Assert.Contains("TestService", firstRequest);
+        }
+
+        [Fact]
+        public void Constructor_ShouldInitializeFields()
+        {
+            Assert.NotNull(_processor);
+        }
+
+        [Fact]
+        public void OnStart_ShouldExportHeartbeatLog()
+        {
+            var activity = new Activity("TestActivity");
+
+            _processor.OnStart(activity);
+
+            Assert.Contains(activity.SpanId, _processor.ActiveActivities);
+            Assert.Single(exportedLogs);
+        }
+
+        [Fact]
+        public void OnEnd_ShouldExportStopLog()
+        {
+            var activity = new Activity("TestActivity");
+
+            _processor.OnStart(activity);
+
+            _processor.OnEnd(activity);
+
+            Assert.Contains(activity.SpanId, _processor.ActiveActivities);
+            Assert.Contains(new KeyValuePair<ActivitySpanId, Activity>(activity.SpanId, activity),
+                _processor.EndedActivities);
+            Assert.Equal(2, exportedLogs.Count);
+        }
+
+        [Fact]
+        public void OnEndAfterHeartbeat_ShouldCleanupActivity()
+        {
+            var activity = new Activity("TestActivity");
+
+            _processor.OnStart(activity);
+
+            _processor.OnEnd(activity);
+
+            Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatIntervalMilliseconds / 2);
+
+            Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
+            Assert.DoesNotContain(
+                new KeyValuePair<ActivitySpanId, Activity>(activity.SpanId, activity),
+                _processor.EndedActivities);
+            Assert.Equal(2, exportedLogs.Count);
+        }
+
+        [Fact]
+        public void Heartbeat_ShouldExportLogRecords()
+        {
+            var activity = new Activity("TestActivity");
+
+            _processor.OnStart(activity);
+
+            Assert.Single(exportedLogs);
+            Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatIntervalMilliseconds / 2);
+            Assert.Equal(2, exportedLogs.Count);
+            Thread.Sleep(HeartbeatIntervalMilliseconds);
+            Assert.Equal(3, exportedLogs.Count);
         }
     }
 }
