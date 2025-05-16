@@ -12,9 +12,11 @@ public class Link
         if (activityLink.Tags != null)
             foreach (var activityLinkTag in activityLink.Tags)
             {
-                KeyValue keyValue = new KeyValue();
-                keyValue.Key = activityLinkTag.Key;
-                keyValue.Value = activityLinkTag.Value?.ToString();
+                var keyValue = new KeyValue
+                {
+                    Key = activityLinkTag.Key,
+                    Value = new AnyValue(activityLinkTag.Value?.ToString())
+                };
                 Attributes.Add(keyValue);
             }
 

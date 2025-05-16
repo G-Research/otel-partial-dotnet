@@ -36,9 +36,11 @@ public class Span
         
         foreach (var activityTagObject in activity.TagObjects)
         {
-            KeyValue keyValue = new KeyValue();
-            keyValue.Key = activityTagObject.Key;
-            keyValue.Value = activityTagObject.Value?.ToString();
+            var keyValue = new KeyValue
+            {
+                Key = activityTagObject.Key,
+                Value = new AnyValue(activityTagObject.Value?.ToString())
+            };
             Attributes.Add(keyValue);
         }
         
