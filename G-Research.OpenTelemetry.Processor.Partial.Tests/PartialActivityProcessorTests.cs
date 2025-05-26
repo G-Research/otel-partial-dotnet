@@ -13,8 +13,8 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
     public class PartialActivityProcessorTests : IDisposable
     {
         private const int HeartbeatIntervalMilliseconds = 1000;
-        private readonly List<LogRecord> exportedLogs = new();
-        private readonly InMemoryExporter<LogRecord> logExporter;
+        private const int HeartbeatDelayMilliseconds = 1000;
+        private readonly List<LogRecord> _exportedLogs = new();
         private readonly PartialActivityProcessor _processor;
         private readonly HttpListener _httpListener;
         private readonly List<string> _receivedRequests = new();
@@ -22,8 +22,10 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
 
         public PartialActivityProcessorTests()
         {
-            logExporter = new InMemoryExporter<LogRecord>(exportedLogs);
-            _processor = new PartialActivityProcessor(logExporter, 1000);
+            InMemoryExporter<LogRecord>
+                logExporter = new InMemoryExporter<LogRecord>(_exportedLogs);
+            _processor = new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds,
+                HeartbeatDelayMilliseconds);
 
             var randomPort = new Random().Next(40000, 50000);
             _mockOtlpEndpoint = $"http://localhost:{randomPort}";
@@ -122,7 +124,7 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
             _processor.OnStart(activity);
 
             Assert.Contains(activity.SpanId, _processor.ActiveActivities);
-            Assert.Single(exportedLogs);
+            Assert.Single(_exportedLogs);
         }
 
         [Fact]
@@ -131,13 +133,11 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
             var activity = new Activity("TestActivity");
 
             _processor.OnStart(activity);
+            Assert.Contains(activity.SpanId, _processor.ActiveActivities);
 
             _processor.OnEnd(activity);
-
-            Assert.Contains(activity.SpanId, _processor.ActiveActivities);
-            Assert.Contains(new KeyValuePair<ActivitySpanId, Activity>(activity.SpanId, activity),
-                _processor.EndedActivities);
-            Assert.Equal(2, exportedLogs.Count);
+            Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
+            Assert.Equal(2, _exportedLogs.Count);
         }
 
         [Fact]
@@ -149,21 +149,41 @@ namespace GR.OpenTelemetry.Processor.Partial.Tests
 
             _processor.OnEnd(activity);
 
-            Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatIntervalMilliseconds / 2);
+            Thread.Sleep(HeartbeatDelayMilliseconds + HeartbeatIntervalMilliseconds +
+                         HeartbeatIntervalMilliseconds / 2);
 
             Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
-            Assert.DoesNotContain(
-                new KeyValuePair<ActivitySpanId, Activity>(activity.SpanId, activity),
-                _processor.EndedActivities);
-            Assert.Equal(2, exportedLogs.Count);
+            Assert.Equal(2, _exportedLogs.Count);
         }
 
         [Fact]
-        public void Heartbeat_ShouldExportLogRecords()
+        public void Heartbeat_ShouldExportLogRecordsWithDelay()
         {
             var activity = new Activity("TestActivity");
 
             _processor.OnStart(activity);
+            Assert.Contains(activity.SpanId, _processor.ActivitiesWithoutFirstHeartbeat);
+
+            Assert.Single(_exportedLogs);
+            Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatDelayMilliseconds +
+                         HeartbeatIntervalMilliseconds / 2);
+            Assert.DoesNotContain(activity.SpanId, _processor.ActivitiesWithoutFirstHeartbeat);
+            Assert.Equal(2, _exportedLogs.Count);
+            Thread.Sleep(HeartbeatIntervalMilliseconds);
+            Assert.Equal(3, _exportedLogs.Count);
+        }
+
+        [Fact]
+        public void Heartbeat_ShouldExportLogRecordsWithoutDelay()
+        {
+            List<LogRecord> exportedLogs = new();
+            var logExporter = new InMemoryExporter<LogRecord>(exportedLogs);
+            var processor =
+                new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds, 0);
+
+            var activity = new Activity("TestActivity");
+
+            processor.OnStart(activity);
 
             Assert.Single(exportedLogs);
             Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatIntervalMilliseconds / 2);
