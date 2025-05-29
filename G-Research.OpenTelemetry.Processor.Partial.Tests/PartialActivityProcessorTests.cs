@@ -203,6 +203,10 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
             TimeSpan.FromSeconds(10));
         Assert.True(readyHeartbeatActivityRemoved,
             "Activity ready for heartbeat was not added in time.");
+
+        var logCountMatch =
+            SpinWait.SpinUntil(() => _exportedLogs.Count >= 2, TimeSpan.FromSeconds(10));
+        Assert.True(logCountMatch, "Heartbeat log was not exported in time.");
     }
 
     [Fact]

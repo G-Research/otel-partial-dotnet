@@ -32,7 +32,8 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         DelayedHeartbeatActivities =>
         _delayedHeartbeatActivities.ToList();
 
-    public IReadOnlyList<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)> ReadyHeartbeatActivities =>
+    public IReadOnlyList<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
+        ReadyHeartbeatActivities =>
         _readyHeartbeatActivities.ToList();
 
     private readonly BaseExporter<LogRecord> _logExporter;
@@ -200,8 +201,14 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             _delayedHeartbeatActivities.TryDequeue(out span);
 
-            if (_activeActivities.TryGetValue(span.SpanId, out _))
+            if (_activeActivities.TryGetValue(span.SpanId, out var activity))
             {
+                using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
+                {
+                    _logger.Value.LogInformation(
+                        SpecHelper.Json(new TracesData(activity, TracesData.Signal.Heartbeat)));
+                }
+
                 _readyHeartbeatActivities.Enqueue((span.SpanId,
                     DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
             }
