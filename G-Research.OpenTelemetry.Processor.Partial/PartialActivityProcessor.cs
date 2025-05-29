@@ -20,20 +20,20 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private readonly ConcurrentDictionary<ActivitySpanId, Activity> _activeActivities;
 
     private readonly ConcurrentQueue<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
-        _startedSpansQueue;
+        _delayedHeartbeatActivities;
 
     private readonly ConcurrentQueue<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
-        _heartbeatSpansQueue;
+        _readyHeartbeatActivities;
 
     // added for tests convenience
     public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities => _activeActivities;
 
     public IReadOnlyList<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
-        StartedSpansQueue =>
-        _startedSpansQueue.ToList();
+        DelayedHeartbeatActivities =>
+        _delayedHeartbeatActivities.ToList();
 
-    public IReadOnlyList<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)> HeartbeatSpansQueue =>
-        _heartbeatSpansQueue.ToList();
+    public IReadOnlyList<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)> ReadyHeartbeatActivities =>
+        _readyHeartbeatActivities.ToList();
 
     private readonly BaseExporter<LogRecord> _logExporter;
     private readonly BaseProcessor<LogRecord> _logProcessor;
@@ -61,8 +61,8 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         _initialHeartbeatDelayMilliseconds = initialHeartbeatDelayMilliseconds;
         _processIntervalMilliseconds = processIntervalMilliseconds;
 
-        _startedSpansQueue = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
-        _heartbeatSpansQueue = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
+        _delayedHeartbeatActivities = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
+        _readyHeartbeatActivities = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
         _activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
 
         _shutdownTrigger = new ManualResetEvent(false);
@@ -87,7 +87,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         }
 
         _activeActivities[data.SpanId] = data;
-        _startedSpansQueue.Enqueue((data.SpanId,
+        _delayedHeartbeatActivities.Enqueue((data.SpanId,
             DateTime.UtcNow.AddMilliseconds(_initialHeartbeatDelayMilliseconds)));
     }
 
@@ -195,14 +195,14 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private void ProcessStartedSpansQueue()
     {
-        while (_startedSpansQueue.TryPeek(out var span) &&
+        while (_delayedHeartbeatActivities.TryPeek(out var span) &&
                span.InitialHeartbeatTime <= DateTime.UtcNow)
         {
-            _startedSpansQueue.TryDequeue(out span);
+            _delayedHeartbeatActivities.TryDequeue(out span);
 
             if (_activeActivities.TryGetValue(span.SpanId, out _))
             {
-                _heartbeatSpansQueue.Enqueue((span.SpanId,
+                _readyHeartbeatActivities.Enqueue((span.SpanId,
                     DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
             }
         }
@@ -210,10 +210,10 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private void ProcessHeartbeatSpansQueue()
     {
-        while (_heartbeatSpansQueue.TryPeek(out var span) &&
+        while (_readyHeartbeatActivities.TryPeek(out var span) &&
                span.NextHeartbeatTime <= DateTime.UtcNow)
         {
-            _heartbeatSpansQueue.TryDequeue(out span);
+            _readyHeartbeatActivities.TryDequeue(out span);
 
             if (!_activeActivities.TryGetValue(span.SpanId, out var activity))
             {
@@ -226,7 +226,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
                     SpecHelper.Json(new TracesData(activity, TracesData.Signal.Heartbeat)));
             }
 
-            _heartbeatSpansQueue.Enqueue((span.SpanId,
+            _readyHeartbeatActivities.Enqueue((span.SpanId,
                 DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
         }
     }

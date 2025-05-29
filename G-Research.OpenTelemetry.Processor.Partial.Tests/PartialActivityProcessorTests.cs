@@ -85,21 +85,23 @@ public class PartialActivityProcessorTests : IDisposable
         var logExporter = new InMemoryExporter<LogRecord>(new List<LogRecord>());
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new PartialActivityProcessor(logExporter, -1, 5000,
-                5000)); // Invalid heartbeat interval
+            new PartialActivityProcessor(logExporter,
+                heartbeatIntervalMilliseconds: -1)); // Invalid heartbeat interval
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new PartialActivityProcessor(logExporter, 5000, -1, 5000)); // Invalid initial delay
+            new PartialActivityProcessor(logExporter,
+                initialHeartbeatDelayMilliseconds: -1)); // Invalid initial delay
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new PartialActivityProcessor(logExporter, 5000, 5000, -1)); // Invalid process interval
+            new PartialActivityProcessor(logExporter,
+                processIntervalMilliseconds: -1)); // Invalid process interval
 
 #if NET
         Assert.Throws<ArgumentNullException>(() =>
-            new PartialActivityProcessor(null, 5000, 5000, 5000)); // Null log exporter
+            new PartialActivityProcessor(logExporter: null!)); // Null log exporter
 #else
 Assert.Throws<ArgumentOutOfRangeException>(() =>
-    new PartialActivityProcessor(null, 5000, 5000, 5000)); // Null log exporter
+    new PartialActivityProcessor(logExporter: null)); // Null log exporter
 #endif
     }
 
@@ -180,7 +182,8 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
     }
 
     [Fact]
-    public void StartedSpansQueue_ShouldMoveSpansToHeartbeatQueueAfterProcessing()
+    public void
+        DelayedHeartbeatActivities_ShouldMoveActivitiesToReadyHeartbeatActivitiesAfterProcessing()
     {
         var activity = new Activity("TestActivity");
         var spanId = activity.SpanId;
@@ -188,18 +191,18 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         _processor.OnStart(activity);
 
         var expectedTrue = SpinWait.SpinUntil(
-            () => _processor.StartedSpansQueue.All(span => span.SpanId != spanId),
+            () => _processor.DelayedHeartbeatActivities.All(span => span.SpanId != spanId),
             TimeSpan.FromSeconds(10));
         Assert.True(expectedTrue, "Started span was not removed from the queue in time.");
 
         expectedTrue = SpinWait.SpinUntil(
-            () => _processor.HeartbeatSpansQueue.Any(span => span.SpanId == spanId),
+            () => _processor.ReadyHeartbeatActivities.Any(span => span.SpanId == spanId),
             TimeSpan.FromSeconds(10));
         Assert.True(expectedTrue, "Heartbeat span was not added to the queue in time.");
     }
 
     [Fact]
-    public void HeartbeatSpansQueue_ShouldProcessHeartbeatLogsAfterProcessing()
+    public void ReadyHeartbeatActivities_ShouldProcessHeartbeatLogsAfterProcessing()
     {
         var activity = new Activity("TestActivity");
         var spanId = activity.SpanId;
@@ -207,12 +210,12 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         _processor.OnStart(activity);
 
         var expectedTrue = SpinWait.SpinUntil(
-            () => _processor.HeartbeatSpansQueue.Any(span => span.SpanId == spanId),
+            () => _processor.ReadyHeartbeatActivities.Any(span => span.SpanId == spanId),
             TimeSpan.FromSeconds(10));
         Assert.True(expectedTrue, "Heartbeat span was not added to the queue in time.");
 
         expectedTrue = SpinWait.SpinUntil(
-            () => _processor.HeartbeatSpansQueue.All(span => span.SpanId != spanId),
+            () => _processor.ReadyHeartbeatActivities.All(span => span.SpanId != spanId),
             TimeSpan.FromSeconds(10));
         Assert.True(expectedTrue, "Heartbeat span was not removed from the queue in time.");
 
