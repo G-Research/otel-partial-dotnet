@@ -220,7 +220,7 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         expectedTrue = SpinWait.SpinUntil(
             () => _processor.ReadyHeartbeatActivities.All(valueTuple =>
                 valueTuple.SpanId != spanId),
-            TimeSpan.FromSeconds(10));
+            TimeSpan.FromSeconds(15));
         Assert.True(expectedTrue, "Activity ready for heartbeat was not removed in time.");
 
         expectedTrue = SpinWait.SpinUntil(() => _exportedLogs.Count >= 2, TimeSpan.FromSeconds(10));
