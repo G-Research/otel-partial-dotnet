@@ -81,12 +81,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public override void OnStart(Activity data)
     {
-        using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
-        {
-            _logger.Value.LogInformation(
-                SpecHelper.Json(new TracesData(data, TracesData.Signal.Heartbeat)));
-        }
-
         _activeActivities[data.SpanId] = data;
         _delayedHeartbeatActivities.Enqueue((data.SpanId,
             DateTime.UtcNow.AddMilliseconds(_initialHeartbeatDelayMilliseconds)));
@@ -94,6 +88,20 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public override void OnEnd(Activity data)
     {
+        var isDelayedHeartbeatPending =
+            _delayedHeartbeatActivities.Any(span => span.SpanId == data.SpanId);
+
+        if (isDelayedHeartbeatPending)
+        {
+            while (_delayedHeartbeatActivities.TryPeek(out var activity) &&
+                   activity.SpanId == data.SpanId)
+            {
+                _delayedHeartbeatActivities.TryDequeue(out _);
+            }
+
+            return;
+        }
+
         using (_logger.Value.BeginScope(GetStopLogRecordAttributes()))
         {
             _logger.Value.LogInformation(

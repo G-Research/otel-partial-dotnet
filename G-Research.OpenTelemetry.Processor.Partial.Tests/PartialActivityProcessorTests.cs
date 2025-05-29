@@ -127,11 +127,14 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         Sdk.CreateTracerProviderBuilder()
             .AddSource("activitySourceTest")
             .ConfigureResource(configure => { configure.AddService("TestService"); })
-            .AddProcessor(new PartialActivityProcessor(otlpLogExporter, 1000))
+            .AddProcessor(new PartialActivityProcessor(otlpLogExporter, 1, 1, 1))
             .Build();
 
         var activity = activitySource.CreateActivity("activityTest", ActivityKind.Internal);
         activity?.Start();
+        
+        Thread.Sleep(1000);
+        
         activity?.Stop();
 
         Assert.NotEmpty(_receivedRequests);
@@ -146,38 +149,58 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
     }
 
     [Fact]
-    public void OnStart_ShouldExportHeartbeatLog()
+    public void OnStart_ShouldAddActivityToActiveAndDelayed()
     {
         var activity = new Activity("TestActivity");
 
         _processor.OnStart(activity);
 
         Assert.Contains(activity.SpanId, _processor.ActiveActivities);
-        Assert.Single(_exportedLogs);
+        Assert.Contains(_processor.DelayedHeartbeatActivities,
+            valueTuple => valueTuple.SpanId == activity.SpanId);
+        Assert.Empty(_exportedLogs);
     }
 
     [Fact]
-    public void OnEnd_ShouldExportStopLog()
+    public void OnEnd_ShouldNotExportLogIfInitialHeartbeatNotSent()
     {
         var activity = new Activity("TestActivity");
 
         _processor.OnStart(activity);
+
+        _processor.OnEnd(activity);
         Assert.Contains(activity.SpanId, _processor.ActiveActivities);
+        Assert.Empty(_exportedLogs);
+    }
+
+    [Fact]
+    public void OnEnd_ShouldExportLogIfInitialHeartbeatSent()
+    {
+        var activity = new Activity("TestActivity");
+        var spanId = activity.SpanId;
+
+        _processor.OnStart(activity);
+
+        var delayedHeartbeatActivityRemoved = SpinWait.SpinUntil(
+            () => _processor.DelayedHeartbeatActivities.All(valueTuple =>
+                valueTuple.SpanId != spanId), TimeSpan.FromSeconds(10));
+        Assert.True(delayedHeartbeatActivityRemoved,
+            "Activity with delayed heartbeat not removed in time.");
+
+        var readyHeartbeatActivityAdded = SpinWait.SpinUntil(
+            () => _processor.ReadyHeartbeatActivities.Any(valueTuple =>
+                valueTuple.SpanId == spanId), TimeSpan.FromSeconds(10));
+        Assert.True(readyHeartbeatActivityAdded,
+            "Activity with ready heartbeat not added in time.");
+
+        var readyHeartbeatActivityRemoved = SpinWait.SpinUntil(
+            () => _processor.ReadyHeartbeatActivities.All(valueTuple =>
+                valueTuple.SpanId != spanId), TimeSpan.FromSeconds(10));
+        Assert.True(readyHeartbeatActivityRemoved,
+            "Activity with ready heartbeat not removed time.");
 
         _processor.OnEnd(activity);
         Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
-        Assert.True(_exportedLogs.Count >= 2);
-    }
-
-    [Fact]
-    public void OnEndAfterHeartbeat_ShouldCleanupActivity()
-    {
-        var activity = new Activity("TestActivity");
-
-        _processor.OnStart(activity);
-        _processor.OnEnd(activity);
-
-        Assert.Empty(_processor.ActiveActivities);
         Assert.True(_exportedLogs.Count >= 2);
     }
 
