@@ -38,7 +38,7 @@ public class Example
             .AddSource("activitySource")
             .ConfigureResource(configure => { configure.AddService("Example"); })
             .AddProcessor(new PartialActivityProcessor(logExporter: otlpLogExporter,
-                heartbeatIntervalMilliseconds: 1000, 6000))
+                heartbeatIntervalMilliseconds: 1000, heartbeatDelayMilliseconds: 6000))
             .AddProcessor(new SimpleActivityExportProcessor(otlpExporter))
             .Build();
 
