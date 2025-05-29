@@ -183,8 +183,8 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
             {
                 WaitHandle.WaitAny(triggers, _processIntervalMilliseconds);
 
-                ProcessStartedSpansQueue();
-                ProcessHeartbeatSpansQueue();
+                ProcessDelayedHeartbeatActivities();
+                ProcessReadyHeartbeatActivities();
             }
             catch (ObjectDisposedException)
             {
@@ -193,7 +193,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         }
     }
 
-    private void ProcessStartedSpansQueue()
+    private void ProcessDelayedHeartbeatActivities()
     {
         while (_delayedHeartbeatActivities.TryPeek(out var span) &&
                span.InitialHeartbeatTime <= DateTime.UtcNow)
@@ -208,7 +208,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         }
     }
 
-    private void ProcessHeartbeatSpansQueue()
+    private void ProcessReadyHeartbeatActivities()
     {
         while (_readyHeartbeatActivities.TryPeek(out var span) &&
                span.NextHeartbeatTime <= DateTime.UtcNow)
