@@ -132,9 +132,9 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
 
         var activity = activitySource.CreateActivity("activityTest", ActivityKind.Internal);
         activity?.Start();
-        
+
         Thread.Sleep(1000);
-        
+
         activity?.Stop();
 
         Assert.NotEmpty(_receivedRequests);
@@ -193,13 +193,15 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         Assert.True(readyHeartbeatActivityAdded,
             "Activity with ready heartbeat not added in time.");
 
+        // HACK: because of test flakiness in ci, this was added so that activity is no longer added to ready heartbeat activities because it is not active anymore
+        _processor.OnEnd(activity);
+
         var readyHeartbeatActivityRemoved = SpinWait.SpinUntil(
             () => _processor.ReadyHeartbeatActivities.All(valueTuple =>
                 valueTuple.SpanId != spanId), TimeSpan.FromSeconds(10));
         Assert.True(readyHeartbeatActivityRemoved,
-            "Activity with ready heartbeat not removed time.");
+            "Activity with ready heartbeat not removed in time.");
 
-        _processor.OnEnd(activity);
         Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
         Assert.True(_exportedLogs.Count >= 2);
     }
@@ -247,7 +249,7 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         Assert.True(heartbeatReadyActivityAdded,
             "Activity ready for heartbeat was not added in time.");
 
-        // HACK: because of test flakyness in ci, this was added so that activity is no longer added to ready heartbeat activities because it is not active anymore
+        // HACK: because of test flakiness in ci, this was added so that activity is no longer added to ready heartbeat activities because it is not active anymore
         _processor.OnEnd(activity);
 
         var heartbeatReadyActivityRemoved = SpinWait.SpinUntil(
