@@ -101,7 +101,7 @@ public class PartialActivityProcessorTests : IDisposable
             new PartialActivityProcessor(logExporter: null!)); // Null log exporter
 #else
 Assert.Throws<ArgumentOutOfRangeException>(() =>
-    new PartialActivityProcessor(logExporter: null)); // Null log exporter
+    new PartialActivityProcessor(logExporter: null!)); // Null log exporter
 #endif
     }
 
