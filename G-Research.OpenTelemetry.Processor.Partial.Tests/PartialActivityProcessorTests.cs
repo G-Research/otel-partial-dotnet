@@ -8,188 +8,215 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Xunit;
 
-namespace GR.OpenTelemetry.Processor.Partial.Tests
+namespace GR.OpenTelemetry.Processor.Partial.Tests;
+
+public class PartialActivityProcessorTests : IDisposable
 {
-    public class PartialActivityProcessorTests : IDisposable
+    private const int HeartbeatIntervalMilliseconds = 1000;
+    private const int InitialHeartbeatDelayMilliseconds = 1000;
+    private const int ProcessIntervalMilliseconds = 0;
+    private readonly List<LogRecord> _exportedLogs = [];
+
+    private readonly PartialActivityProcessor _processor;
+    private readonly HttpListener _httpListener;
+    private readonly List<string> _receivedRequests = [];
+    private readonly string _mockOtlpEndpoint;
+
+    public PartialActivityProcessorTests()
     {
-        private const int HeartbeatIntervalMilliseconds = 1000;
-        private const int HeartbeatDelayMilliseconds = 1000;
-        private readonly List<LogRecord> _exportedLogs = new();
-        private readonly PartialActivityProcessor _processor;
-        private readonly HttpListener _httpListener;
-        private readonly List<string> _receivedRequests = new();
-        private readonly string _mockOtlpEndpoint;
+        InMemoryExporter<LogRecord>
+            logExporter = new InMemoryExporter<LogRecord>(_exportedLogs);
+        _processor = new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds,
+            InitialHeartbeatDelayMilliseconds, ProcessIntervalMilliseconds);
 
-        public PartialActivityProcessorTests()
+        var randomPort = new Random().Next(40000, 50000);
+        _mockOtlpEndpoint = $"http://localhost:{randomPort}";
+
+        _httpListener = new HttpListener();
+        StartMockOtlpEndpoint();
+    }
+
+    private void StartMockOtlpEndpoint()
+    {
+        _httpListener.Prefixes.Add(_mockOtlpEndpoint + "/");
+        _httpListener.Start();
+
+        Task.Run(() =>
         {
-            InMemoryExporter<LogRecord>
-                logExporter = new InMemoryExporter<LogRecord>(_exportedLogs);
-            _processor = new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds,
-                HeartbeatDelayMilliseconds);
-
-            var randomPort = new Random().Next(40000, 50000);
-            _mockOtlpEndpoint = $"http://localhost:{randomPort}";
-
-            _httpListener = new HttpListener();
-            StartMockOtlpEndpoint();
-        }
-
-        private void StartMockOtlpEndpoint()
-        {
-            _httpListener.Prefixes.Add(_mockOtlpEndpoint + "/");
-            _httpListener.Start();
-
-            Task.Run(() =>
+            while (_httpListener.IsListening)
             {
-                while (_httpListener.IsListening)
+                try
                 {
-                    try
-                    {
-                        var context = _httpListener.GetContext();
-                        using var reader =
-                            new StreamReader(context.Request.InputStream, Encoding.UTF8);
-                        var requestBody = reader.ReadToEnd();
-                        _receivedRequests.Add(requestBody);
+                    var context = _httpListener.GetContext();
+                    using var reader =
+                        new StreamReader(context.Request.InputStream, Encoding.UTF8);
+                    var requestBody = reader.ReadToEnd();
+                    _receivedRequests.Add(requestBody);
 
-                        context.Response.StatusCode = (int)HttpStatusCode.OK;
-                        context.Response.Close();
-                    }
-                    catch (Exception)
-                    {
-                        // Ignore exceptions when stopping the listener
-                    }
+                    context.Response.StatusCode = (int)HttpStatusCode.OK;
+                    context.Response.Close();
                 }
-            });
-        }
-
-        private void StopMockOtlpEndpoint()
-        {
-            if (_httpListener is { IsListening: true })
-            {
-                _httpListener.Stop();
-                _httpListener.Close();
+                catch (Exception)
+                {
+                    // Ignore exceptions when stopping the listener
+                }
             }
-        }
+        });
+    }
 
-        public void Dispose()
+    private void StopMockOtlpEndpoint()
+    {
+        if (_httpListener is { IsListening: true })
         {
-            StopMockOtlpEndpoint();
+            _httpListener.Stop();
+            _httpListener.Close();
         }
+    }
 
-        [Fact]
-        public void Log_ShouldContainDefinedResource()
+    public void Dispose()
+    {
+        _exportedLogs.Clear();
+        StopMockOtlpEndpoint();
+    }
+
+    [Fact]
+    public void Constructor_ShouldThrowExceptionForInvalidParameters()
+    {
+        var logExporter = new InMemoryExporter<LogRecord>(new List<LogRecord>());
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new PartialActivityProcessor(logExporter, -1, 5000,
+                5000)); // Invalid heartbeat interval
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new PartialActivityProcessor(logExporter, 5000, -1, 5000)); // Invalid initial delay
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new PartialActivityProcessor(logExporter, 5000, 5000, -1)); // Invalid process interval
+
+#if NET
+        Assert.Throws<ArgumentNullException>(() =>
+            new PartialActivityProcessor(null, 5000, 5000, 5000)); // Null log exporter
+#else
+Assert.Throws<ArgumentOutOfRangeException>(() =>
+    new PartialActivityProcessor(null, 5000, 5000, 5000)); // Null log exporter
+#endif
+    }
+
+    [Fact]
+    public void Log_ShouldContainDefinedResource()
+    {
+        ActivitySource activitySource = new("activitySourceTest");
+        ActivitySource.AddActivityListener(new ActivityListener
         {
-            ActivitySource activitySource = new("activitySourceTest");
-            ActivitySource.AddActivityListener(new ActivityListener
-            {
-                ShouldListenTo = _ => true,
-                SampleUsingParentId = (ref ActivityCreationOptions<string> _) =>
-                    ActivitySamplingResult.AllData,
-                Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
-                    ActivitySamplingResult.AllData,
-            });
+            ShouldListenTo = _ => true,
+            SampleUsingParentId = (ref ActivityCreationOptions<string> _) =>
+                ActivitySamplingResult.AllData,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) =>
+                ActivitySamplingResult.AllData,
+        });
 
-            var otlpLogExporter = new OtlpLogExporter(new OtlpExporterOptions
-            {
-                Protocol = OtlpExportProtocol.HttpProtobuf,
-                Endpoint = new Uri(_mockOtlpEndpoint)
-            });
-
-            Sdk.CreateTracerProviderBuilder()
-                .AddSource("activitySourceTest")
-                .ConfigureResource(configure => { configure.AddService("TestService"); })
-                .AddProcessor(new PartialActivityProcessor(otlpLogExporter, 1000))
-                .Build();
-
-            var activity = activitySource.CreateActivity("activityTest", ActivityKind.Internal);
-            activity?.Start();
-            activity?.Stop();
-
-            Assert.NotEmpty(_receivedRequests);
-            var firstRequest = _receivedRequests.First();
-            Assert.Contains("TestService", firstRequest);
-        }
-
-        [Fact]
-        public void Constructor_ShouldInitializeFields()
+        var otlpLogExporter = new OtlpLogExporter(new OtlpExporterOptions
         {
-            Assert.NotNull(_processor);
-        }
+            Protocol = OtlpExportProtocol.HttpProtobuf,
+            Endpoint = new Uri(_mockOtlpEndpoint)
+        });
 
-        [Fact]
-        public void OnStart_ShouldExportHeartbeatLog()
-        {
-            var activity = new Activity("TestActivity");
+        Sdk.CreateTracerProviderBuilder()
+            .AddSource("activitySourceTest")
+            .ConfigureResource(configure => { configure.AddService("TestService"); })
+            .AddProcessor(new PartialActivityProcessor(otlpLogExporter, 1000))
+            .Build();
 
-            _processor.OnStart(activity);
+        var activity = activitySource.CreateActivity("activityTest", ActivityKind.Internal);
+        activity?.Start();
+        activity?.Stop();
 
-            Assert.Contains(activity.SpanId, _processor.ActiveActivities);
-            Assert.Single(_exportedLogs);
-        }
+        Assert.NotEmpty(_receivedRequests);
+        var firstRequest = _receivedRequests.First();
+        Assert.Contains("TestService", firstRequest);
+    }
 
-        [Fact]
-        public void OnEnd_ShouldExportStopLog()
-        {
-            var activity = new Activity("TestActivity");
+    [Fact]
+    public void Constructor_ShouldInitializeFields()
+    {
+        Assert.NotNull(_processor);
+    }
 
-            _processor.OnStart(activity);
-            Assert.Contains(activity.SpanId, _processor.ActiveActivities);
+    [Fact]
+    public void OnStart_ShouldExportHeartbeatLog()
+    {
+        var activity = new Activity("TestActivity");
 
-            _processor.OnEnd(activity);
-            Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
-            Assert.Equal(2, _exportedLogs.Count);
-        }
+        _processor.OnStart(activity);
 
-        [Fact]
-        public void OnEndAfterHeartbeat_ShouldCleanupActivity()
-        {
-            var activity = new Activity("TestActivity");
+        Assert.Contains(activity.SpanId, _processor.ActiveActivities);
+        Assert.Single(_exportedLogs);
+    }
 
-            _processor.OnStart(activity);
+    [Fact]
+    public void OnEnd_ShouldExportStopLog()
+    {
+        var activity = new Activity("TestActivity");
 
-            _processor.OnEnd(activity);
+        _processor.OnStart(activity);
+        Assert.Contains(activity.SpanId, _processor.ActiveActivities);
 
-            Thread.Sleep(HeartbeatDelayMilliseconds + HeartbeatIntervalMilliseconds +
-                         HeartbeatIntervalMilliseconds / 2);
+        _processor.OnEnd(activity);
+        Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
+        Assert.Equal(2, _exportedLogs.Count);
+    }
 
-            Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
-            Assert.Equal(2, _exportedLogs.Count);
-        }
+    [Fact]
+    public void OnEndAfterHeartbeat_ShouldCleanupActivity()
+    {
+        var activity = new Activity("TestActivity");
 
-        [Fact]
-        public void Heartbeat_ShouldExportLogRecordsWithDelay()
-        {
-            var activity = new Activity("TestActivity");
+        _processor.OnStart(activity);
+        _processor.OnEnd(activity);
 
-            _processor.OnStart(activity);
-            Assert.Contains(activity.SpanId, _processor.ActivitiesWithoutFirstHeartbeat);
+        Assert.Empty(_processor.ActiveActivities);
+        Assert.Equal(2, _exportedLogs.Count);
+    }
 
-            Assert.Single(_exportedLogs);
-            Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatDelayMilliseconds +
-                         HeartbeatIntervalMilliseconds / 2);
-            Assert.DoesNotContain(activity.SpanId, _processor.ActivitiesWithoutFirstHeartbeat);
-            Assert.Equal(2, _exportedLogs.Count);
-            Thread.Sleep(HeartbeatIntervalMilliseconds);
-            Assert.Equal(3, _exportedLogs.Count);
-        }
+    [Fact]
+    public void StartedSpansQueue_ShouldMoveSpansToHeartbeatQueueAfterProcessing()
+    {
+        var activity = new Activity("TestActivity");
+        var spanId = activity.SpanId;
 
-        [Fact]
-        public void Heartbeat_ShouldExportLogRecordsWithoutDelay()
-        {
-            List<LogRecord> exportedLogs = new();
-            var logExporter = new InMemoryExporter<LogRecord>(exportedLogs);
-            var processor =
-                new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds, 0);
+        _processor.OnStart(activity);
 
-            var activity = new Activity("TestActivity");
+        var expectedTrue = SpinWait.SpinUntil(
+            () => _processor.StartedSpansQueue.All(span => span.SpanId != spanId),
+            TimeSpan.FromSeconds(10));
+        Assert.True(expectedTrue, "Started span was not removed from the queue in time.");
 
-            processor.OnStart(activity);
+        expectedTrue = SpinWait.SpinUntil(
+            () => _processor.HeartbeatSpansQueue.Any(span => span.SpanId == spanId),
+            TimeSpan.FromSeconds(10));
+        Assert.True(expectedTrue, "Heartbeat span was not added to the queue in time.");
+    }
 
-            Assert.Single(exportedLogs);
-            Thread.Sleep(HeartbeatIntervalMilliseconds + HeartbeatIntervalMilliseconds / 2);
-            Assert.Equal(2, exportedLogs.Count);
-            Thread.Sleep(HeartbeatIntervalMilliseconds);
-            Assert.Equal(3, exportedLogs.Count);
-        }
+    [Fact]
+    public void HeartbeatSpansQueue_ShouldProcessHeartbeatLogsAfterProcessing()
+    {
+        var activity = new Activity("TestActivity");
+        var spanId = activity.SpanId;
+
+        _processor.OnStart(activity);
+
+        var expectedTrue = SpinWait.SpinUntil(
+            () => _processor.HeartbeatSpansQueue.Any(span => span.SpanId == spanId),
+            TimeSpan.FromSeconds(10));
+        Assert.True(expectedTrue, "Heartbeat span was not added to the queue in time.");
+
+        expectedTrue = SpinWait.SpinUntil(
+            () => _processor.HeartbeatSpansQueue.All(span => span.SpanId != spanId),
+            TimeSpan.FromSeconds(10));
+        Assert.True(expectedTrue, "Heartbeat span was not removed from the queue in time.");
+
+        expectedTrue = SpinWait.SpinUntil(() => _exportedLogs.Count == 2, TimeSpan.FromSeconds(10));
+        Assert.True(expectedTrue, "Heartbeat log was not exported in time.");
     }
 }
