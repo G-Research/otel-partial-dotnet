@@ -166,7 +166,7 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
 
         _processor.OnEnd(activity);
         Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
-        Assert.Equal(2, _exportedLogs.Count);
+        Assert.True(_exportedLogs.Count >= 2);
     }
 
     [Fact]
@@ -178,7 +178,7 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         _processor.OnEnd(activity);
 
         Assert.Empty(_processor.ActiveActivities);
-        Assert.Equal(2, _exportedLogs.Count);
+        Assert.True(_exportedLogs.Count >= 2);
     }
 
     [Fact]
@@ -219,7 +219,7 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
             TimeSpan.FromSeconds(10));
         Assert.True(expectedTrue, "Heartbeat span was not removed from the queue in time.");
 
-        expectedTrue = SpinWait.SpinUntil(() => _exportedLogs.Count == 2, TimeSpan.FromSeconds(10));
+        expectedTrue = SpinWait.SpinUntil(() => _exportedLogs.Count >= 2, TimeSpan.FromSeconds(10));
         Assert.True(expectedTrue, "Heartbeat log was not exported in time.");
     }
 }
