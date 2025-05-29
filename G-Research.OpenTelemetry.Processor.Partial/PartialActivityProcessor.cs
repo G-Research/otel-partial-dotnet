@@ -10,142 +10,103 @@ namespace GR.OpenTelemetry.Processor.Partial;
 public class PartialActivityProcessor : BaseProcessor<Activity>
 {
     private const int DefaultHeartbeatIntervalMilliseconds = 5000;
-    private const int DefaultHeartbeatDelayMilliseconds = 5000;
-    private readonly int heartbeatIntervalMilliseconds;
-    private readonly int heartbeatDelayMilliseconds;
-    private readonly Thread exporterThread;
-    private readonly ManualResetEvent shutdownTrigger;
-    private readonly Lazy<ILogger<PartialActivityProcessor>> logger;
-    private readonly Lazy<ILoggerFactory> loggerFactory;
+    private const int DefaultInitialHeartbeatDelayMilliseconds = 5000;
+    private const int DefaultProcessIntervalMilliseconds = 5000;
 
-    private readonly ConcurrentDictionary<ActivitySpanId, Activity> activeActivities;
-    private readonly ConcurrentDictionary<ActivitySpanId, Activity> activitiesWithoutFirstHeartbeat;
+    private readonly int _heartbeatIntervalMilliseconds;
+    private readonly int _initialHeartbeatDelayMilliseconds;
+    private readonly int _processIntervalMilliseconds;
 
-    private readonly BaseExporter<LogRecord> logExporter;
-    private readonly BaseProcessor<LogRecord> logProcessor;
+    private readonly ConcurrentDictionary<ActivitySpanId, Activity> _activeActivities;
 
-    public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities => activeActivities;
+    private readonly ConcurrentQueue<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
+        _startedSpansQueue;
 
-    public IReadOnlyDictionary<ActivitySpanId, Activity> ActivitiesWithoutFirstHeartbeat =>
-        activitiesWithoutFirstHeartbeat;
+    private readonly ConcurrentQueue<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
+        _heartbeatSpansQueue;
 
+    // added for tests convenience
+    public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities => _activeActivities;
 
-    public PartialActivityProcessor(BaseExporter<LogRecord> logExporter,
+    public IReadOnlyList<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
+        StartedSpansQueue =>
+        _startedSpansQueue.ToList();
+
+    public IReadOnlyList<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)> HeartbeatSpansQueue =>
+        _heartbeatSpansQueue.ToList();
+
+    private readonly BaseExporter<LogRecord> _logExporter;
+    private readonly BaseProcessor<LogRecord> _logProcessor;
+    private readonly Lazy<ILogger<PartialActivityProcessor>> _logger;
+    private readonly Lazy<ILoggerFactory> _loggerFactory;
+
+    private readonly Thread _processorThread;
+    private readonly ManualResetEvent _shutdownTrigger;
+
+    public PartialActivityProcessor(
+        BaseExporter<LogRecord> logExporter,
         int heartbeatIntervalMilliseconds = DefaultHeartbeatIntervalMilliseconds,
-        int heartbeatDelayMilliseconds = DefaultHeartbeatDelayMilliseconds)
+        int initialHeartbeatDelayMilliseconds = DefaultInitialHeartbeatDelayMilliseconds,
+        int processIntervalMilliseconds = DefaultProcessIntervalMilliseconds
+    )
     {
-#if NET
-        ArgumentNullException.ThrowIfNull(logExporter);
-#else
-        if (logExporter == null)
-        {
-            throw new ArgumentOutOfRangeException(nameof(logExporter));
-        }
-#endif
-        this.logExporter = logExporter;
-        logProcessor = new SimpleLogRecordExportProcessor(logExporter);
+        ValidateParameters(logExporter, heartbeatIntervalMilliseconds,
+            initialHeartbeatDelayMilliseconds,
+            processIntervalMilliseconds);
 
-        if (heartbeatIntervalMilliseconds < 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(heartbeatIntervalMilliseconds));
-        }
+        _logExporter = logExporter;
+        _logProcessor = new SimpleLogRecordExportProcessor(logExporter);
 
-        this.heartbeatIntervalMilliseconds = heartbeatIntervalMilliseconds;
+        _heartbeatIntervalMilliseconds = heartbeatIntervalMilliseconds;
+        _initialHeartbeatDelayMilliseconds = initialHeartbeatDelayMilliseconds;
+        _processIntervalMilliseconds = processIntervalMilliseconds;
 
-        if (heartbeatDelayMilliseconds < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(heartbeatDelayMilliseconds));
-        }
+        _startedSpansQueue = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
+        _heartbeatSpansQueue = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
+        _activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
 
-        this.heartbeatDelayMilliseconds = heartbeatDelayMilliseconds;
+        _shutdownTrigger = new ManualResetEvent(false);
 
-        activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
-        activitiesWithoutFirstHeartbeat = new ConcurrentDictionary<ActivitySpanId, Activity>();
-
-        shutdownTrigger = new ManualResetEvent(false);
-
-        exporterThread = new Thread(ExporterProc)
+        _processorThread = new Thread(ProcessQueues)
         {
             IsBackground = true,
-            Name = $"OpenTelemetry-{nameof(PartialActivityProcessor)}",
+            Name = $"OpenTelemetry-{nameof(PartialActivityProcessor)}"
         };
-        exporterThread.Start();
+        _processorThread.Start();
 
-        loggerFactory = new Lazy<ILoggerFactory>(CreateLoggerFactory);
-        logger = new Lazy<ILogger<PartialActivityProcessor>>(InitializeLogger);
-    }
-
-    private void ExporterProc()
-    {
-        var triggers = new WaitHandle[] { shutdownTrigger };
-
-        while (true)
-        {
-            try
-            {
-                WaitHandle.WaitAny(triggers, heartbeatIntervalMilliseconds);
-                HeartbeatAsync().Wait();
-            }
-            catch (ObjectDisposedException)
-            {
-                return;
-            }
-        }
-    }
-
-    private async Task HeartbeatAsync()
-    {
-        using (logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
-        {
-            var keysSnapshot = activeActivities.Keys.ToList();
-            var tasks = keysSnapshot.Select(async spanId =>
-            {
-                // handle the first heartbeat delay
-                if (activitiesWithoutFirstHeartbeat.TryRemove(spanId, out _))
-                {
-                    await Task.Delay(heartbeatDelayMilliseconds);
-                }
-
-                if (activeActivities.TryGetValue(spanId, out var activity))
-                {
-                    logger.Value.LogInformation(
-                        SpecHelper.Json(new TracesData(activity, TracesData.Signal.Heartbeat)));
-                }
-            });
-
-            await Task.WhenAll(tasks);
-        }
+        _loggerFactory = new Lazy<ILoggerFactory>(CreateLoggerFactory);
+        _logger = new Lazy<ILogger<PartialActivityProcessor>>(InitializeLogger);
     }
 
     public override void OnStart(Activity data)
     {
-        // Access logger.Value to ensure lazy initialization
-        using (logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
+        using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
         {
-            logger.Value.LogInformation(
+            _logger.Value.LogInformation(
                 SpecHelper.Json(new TracesData(data, TracesData.Signal.Heartbeat)));
         }
 
-        activeActivities[data.SpanId] = data;
-        activitiesWithoutFirstHeartbeat[data.SpanId] = data;
+        _activeActivities[data.SpanId] = data;
+        _startedSpansQueue.Enqueue((data.SpanId,
+            DateTime.UtcNow.AddMilliseconds(_initialHeartbeatDelayMilliseconds)));
     }
 
     public override void OnEnd(Activity data)
     {
-        using (logger.Value.BeginScope(GetStopLogRecordAttributes()))
+        using (_logger.Value.BeginScope(GetStopLogRecordAttributes()))
         {
-            logger.Value.LogInformation(
+            _logger.Value.LogInformation(
                 SpecHelper.Json(new TracesData(data, TracesData.Signal.Stop)));
         }
 
-        activeActivities.TryRemove(data.SpanId, out _);
+        _activeActivities.TryRemove(data.SpanId, out _);
     }
 
     protected override bool OnShutdown(int timeoutMilliseconds)
     {
         try
         {
-            shutdownTrigger.Set();
+            _shutdownTrigger.Set();
         }
         catch (ObjectDisposedException)
         {
@@ -155,33 +116,33 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         switch (timeoutMilliseconds)
         {
             case Timeout.Infinite:
-                exporterThread.Join();
-                return logExporter.Shutdown() && logProcessor.Shutdown();
+                _processorThread.Join();
+                return _logExporter.Shutdown() && _logProcessor.Shutdown();
             case 0:
-                return logExporter.Shutdown(0) && logProcessor.Shutdown(0);
+                return _logExporter.Shutdown(0) && _logProcessor.Shutdown(0);
         }
 
         var sw = Stopwatch.StartNew();
-        exporterThread.Join(timeoutMilliseconds);
+        _processorThread.Join(timeoutMilliseconds);
         var timeout = timeoutMilliseconds - sw.ElapsedMilliseconds;
-        return logExporter.Shutdown((int)Math.Max(timeout, 0)) &&
-               logProcessor.Shutdown((int)Math.Max(timeout, 0));
+        return _logExporter.Shutdown((int)Math.Max(timeout, 0)) &&
+               _logProcessor.Shutdown((int)Math.Max(timeout, 0));
     }
 
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        shutdownTrigger.Dispose();
-        logProcessor.Dispose();
-        if (loggerFactory.IsValueCreated)
+        _shutdownTrigger.Dispose();
+        _logProcessor.Dispose();
+        if (_loggerFactory.IsValueCreated)
         {
-            loggerFactory.Value.Dispose();
+            _loggerFactory.Value.Dispose();
         }
     }
 
     private ILogger<PartialActivityProcessor> InitializeLogger()
     {
-        return loggerFactory.Value.CreateLogger<PartialActivityProcessor>();
+        return _loggerFactory.Value.CreateLogger<PartialActivityProcessor>();
     }
 
     private ILoggerFactory CreateLoggerFactory()
@@ -192,7 +153,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
             builder.AddOpenTelemetry(options =>
             {
                 options.IncludeScopes = true;
-                options.AddProcessor(logProcessor);
+                options.AddProcessor(_logProcessor);
                 options.SetResourceBuilder(ResourceBuilder.CreateEmpty()
                     .AddAttributes(ParentProvider.GetResource().Attributes));
             });
@@ -202,7 +163,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private Dictionary<string, object> GetHeartbeatLogRecordAttributes() => new()
     {
         ["partial.event"] = "heartbeat",
-        ["partial.frequency"] = $"{heartbeatIntervalMilliseconds}ms",
+        ["partial.frequency"] = $"{_heartbeatIntervalMilliseconds}ms",
         ["partial.body.type"] = "json/v1",
     };
 
@@ -211,4 +172,94 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         ["partial.event"] = "stop",
         ["partial.body.type"] = "json/v1",
     };
+
+    private void ProcessQueues()
+    {
+        var triggers = new WaitHandle[] { _shutdownTrigger };
+
+        while (true)
+        {
+            try
+            {
+                WaitHandle.WaitAny(triggers, _processIntervalMilliseconds);
+
+                ProcessStartedSpansQueue();
+                ProcessHeartbeatSpansQueue();
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+        }
+    }
+
+    private void ProcessStartedSpansQueue()
+    {
+        while (_startedSpansQueue.TryPeek(out var span) &&
+               span.InitialHeartbeatTime <= DateTime.UtcNow)
+        {
+            _startedSpansQueue.TryDequeue(out span);
+
+            if (_activeActivities.TryGetValue(span.SpanId, out _))
+            {
+                _heartbeatSpansQueue.Enqueue((span.SpanId,
+                    DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
+            }
+        }
+    }
+
+    private void ProcessHeartbeatSpansQueue()
+    {
+        while (_heartbeatSpansQueue.TryPeek(out var span) &&
+               span.NextHeartbeatTime <= DateTime.UtcNow)
+        {
+            _heartbeatSpansQueue.TryDequeue(out span);
+
+            if (!_activeActivities.TryGetValue(span.SpanId, out var activity))
+            {
+                continue;
+            }
+
+            using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
+            {
+                _logger.Value.LogInformation(
+                    SpecHelper.Json(new TracesData(activity, TracesData.Signal.Heartbeat)));
+            }
+
+            _heartbeatSpansQueue.Enqueue((span.SpanId,
+                DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
+        }
+    }
+
+    private static void ValidateParameters(BaseExporter<LogRecord> logExporter,
+        int heartbeatIntervalMilliseconds,
+        int initialHeartbeatDelayMilliseconds, int processIntervalMilliseconds)
+    {
+#if NET
+        ArgumentNullException.ThrowIfNull(logExporter);
+#else
+        if (logExporter == null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(logExporter));
+        }
+#endif
+
+        if (heartbeatIntervalMilliseconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(heartbeatIntervalMilliseconds),
+                "Heartbeat interval must be greater than zero.");
+        }
+
+        if (initialHeartbeatDelayMilliseconds < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(initialHeartbeatDelayMilliseconds),
+                "Initial heartbeat delay must be zero or greater.");
+        }
+
+        if (processIntervalMilliseconds < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(processIntervalMilliseconds),
+                "Process interval must be zero or greater.");
+        }
+    }
 }
