@@ -190,17 +190,19 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
 
         _processor.OnStart(activity);
 
-        var expectedTrue = SpinWait.SpinUntil(
+        var delayedHeartbeatActivityRemoved = SpinWait.SpinUntil(
             () => _processor.DelayedHeartbeatActivities.All(valueTuple =>
                 valueTuple.SpanId != spanId),
             TimeSpan.FromSeconds(10));
-        Assert.True(expectedTrue, "Activity with delayed heartbeat was not removed in time.");
+        Assert.True(delayedHeartbeatActivityRemoved,
+            "Activity with delayed heartbeat was not removed in time.");
 
-        expectedTrue = SpinWait.SpinUntil(
+        var readyHeartbeatActivityRemoved = SpinWait.SpinUntil(
             () => _processor.ReadyHeartbeatActivities.Any(valueTuple =>
                 valueTuple.SpanId == spanId),
             TimeSpan.FromSeconds(10));
-        Assert.True(expectedTrue, "Activity ready for heartbeat was not added in time.");
+        Assert.True(readyHeartbeatActivityRemoved,
+            "Activity ready for heartbeat was not added in time.");
     }
 
     [Fact]
@@ -211,19 +213,49 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
 
         _processor.OnStart(activity);
 
-        var expectedTrue = SpinWait.SpinUntil(
+        var heartbeatReadyActivityAdded = SpinWait.SpinUntil(
             () => _processor.ReadyHeartbeatActivities.Any(valueTuple =>
                 valueTuple.SpanId == spanId),
             TimeSpan.FromSeconds(10));
-        Assert.True(expectedTrue, "Activity ready for heartbeat was not added in time.");
+        Assert.True(heartbeatReadyActivityAdded,
+            "Activity ready for heartbeat was not added in time.");
 
-        expectedTrue = SpinWait.SpinUntil(
+        var heartbeatReadyActivityRemoved = SpinWait.SpinUntil(
             () => _processor.ReadyHeartbeatActivities.All(valueTuple =>
                 valueTuple.SpanId != spanId),
             TimeSpan.FromSeconds(15));
-        Assert.True(expectedTrue, "Activity ready for heartbeat was not removed in time.");
+        Assert.True(heartbeatReadyActivityRemoved,
+            "Activity ready for heartbeat was not removed in time.");
 
-        expectedTrue = SpinWait.SpinUntil(() => _exportedLogs.Count >= 2, TimeSpan.FromSeconds(10));
-        Assert.True(expectedTrue, "Heartbeat log was not exported in time.");
+        var logCountMatch =
+            SpinWait.SpinUntil(() => _exportedLogs.Count >= 2, TimeSpan.FromSeconds(10));
+        Assert.True(logCountMatch, "Heartbeat log was not exported in time.");
+    }
+
+    [Fact]
+    public void ReadyHeartbeatActivities_ShouldProcessHeartbeatLogsAfterProcessing1()
+    {
+        // Arrange
+        var activity = new Activity("TestActivity");
+        var spanId = activity.SpanId;
+
+        _processor.OnStart(activity);
+
+        // Act
+        var readyHeartbeatAdded = SpinWait.SpinUntil(
+            () => _processor.ReadyHeartbeatActivities.Any(valueTuple =>
+                valueTuple.SpanId == spanId),
+            TimeSpan.FromSeconds(15));
+        Assert.True(readyHeartbeatAdded, "Activity ready for heartbeat was not added in time.");
+
+        var readyHeartbeatRemoved = SpinWait.SpinUntil(
+            () => _processor.ReadyHeartbeatActivities.All(valueTuple =>
+                valueTuple.SpanId != spanId),
+            TimeSpan.FromSeconds(15));
+        Assert.True(readyHeartbeatRemoved, "Activity ready for heartbeat was not removed in time.");
+
+        var logsExported =
+            SpinWait.SpinUntil(() => _exportedLogs.Count >= 2, TimeSpan.FromSeconds(15));
+        Assert.True(logsExported, "Heartbeat log was not exported in time.");
     }
 }
