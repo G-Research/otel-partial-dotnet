@@ -209,17 +209,19 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         {
             _delayedHeartbeatActivities.TryDequeue(out span);
 
-            if (_activeActivities.TryGetValue(span.SpanId, out var activity))
+            if (!_activeActivities.TryGetValue(span.SpanId, out var activity))
             {
-                using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
-                {
-                    _logger.Value.LogInformation(
-                        SpecHelper.Json(new TracesData(activity, TracesData.Signal.Heartbeat)));
-                }
-
-                _readyHeartbeatActivities.Enqueue((span.SpanId,
-                    DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
+                continue;
             }
+            
+            using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
+            {
+                _logger.Value.LogInformation(
+                    SpecHelper.Json(new TracesData(activity, TracesData.Signal.Heartbeat)));
+            }
+
+            _readyHeartbeatActivities.Enqueue((span.SpanId,
+                DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
         }
     }
 
