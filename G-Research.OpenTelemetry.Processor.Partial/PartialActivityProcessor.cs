@@ -22,6 +22,8 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private readonly ConcurrentQueue<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
         _delayedHeartbeatActivities;
 
+    private readonly ConcurrentDictionary<ActivitySpanId, bool> _delayedHeartbeatActivitiesLookup;
+
     private readonly ConcurrentQueue<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
         _readyHeartbeatActivities;
 
@@ -31,6 +33,9 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     public IReadOnlyList<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
         DelayedHeartbeatActivities =>
         _delayedHeartbeatActivities.ToList();
+
+    public ConcurrentDictionary<ActivitySpanId, bool> DelayedHeartbeatActivitiesLookup =>
+        _delayedHeartbeatActivitiesLookup;
 
     public IReadOnlyList<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
         ReadyHeartbeatActivities =>
@@ -63,6 +68,8 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         _processIntervalMilliseconds = processIntervalMilliseconds;
 
         _delayedHeartbeatActivities = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
+        // there is no thread safe version of set so values are dummy
+        _delayedHeartbeatActivitiesLookup = new ConcurrentDictionary<ActivitySpanId, bool>();
         _readyHeartbeatActivities = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
         _activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
 
@@ -82,20 +89,21 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     public override void OnStart(Activity data)
     {
         _activeActivities[data.SpanId] = data;
+        _delayedHeartbeatActivitiesLookup[data.SpanId] = true;
         _delayedHeartbeatActivities.Enqueue((data.SpanId,
             DateTime.UtcNow.AddMilliseconds(_initialHeartbeatDelayMilliseconds)));
     }
 
     public override void OnEnd(Activity data)
     {
-        var isDelayedHeartbeatPending =
-            _delayedHeartbeatActivities.Any(span => span.SpanId == data.SpanId);
+        _delayedHeartbeatActivitiesLookup.TryGetValue(data.SpanId, out var isDelayedHeartbeatPending);
 
         if (isDelayedHeartbeatPending)
         {
             while (_delayedHeartbeatActivities.TryPeek(out var activity) &&
                    activity.SpanId == data.SpanId)
             {
+                _delayedHeartbeatActivitiesLookup.TryRemove(activity.SpanId, out _);
                 _delayedHeartbeatActivities.TryDequeue(out _);
             }
 
@@ -207,13 +215,14 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         while (_delayedHeartbeatActivities.TryPeek(out var span) &&
                span.InitialHeartbeatTime <= DateTime.UtcNow)
         {
+            _delayedHeartbeatActivitiesLookup.TryRemove(span.SpanId, out _);
             _delayedHeartbeatActivities.TryDequeue(out span);
 
             if (!_activeActivities.TryGetValue(span.SpanId, out var activity))
             {
                 continue;
             }
-            
+
             using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
             {
                 _logger.Value.LogInformation(

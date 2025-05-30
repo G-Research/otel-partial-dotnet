@@ -156,6 +156,7 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         _processor.OnStart(activity);
 
         Assert.Contains(activity.SpanId, _processor.ActiveActivities);
+        Assert.Contains(activity.SpanId, _processor.DelayedHeartbeatActivitiesLookup);
         Assert.Contains(_processor.DelayedHeartbeatActivities,
             valueTuple => valueTuple.SpanId == activity.SpanId);
         Assert.Empty(_exportedLogs);
@@ -180,6 +181,13 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         var spanId = activity.SpanId;
 
         _processor.OnStart(activity);
+
+        var delayedHeartbeatActivityLookupRemoved = SpinWait.SpinUntil(
+            () => _processor.DelayedHeartbeatActivitiesLookup.All(
+                keyValue => keyValue.Key != spanId),
+            TimeSpan.FromSeconds(10));
+        Assert.True(delayedHeartbeatActivityLookupRemoved,
+            "Lookup activity with delayed heartbeat not removed in time.");
 
         var delayedHeartbeatActivityRemoved = SpinWait.SpinUntil(
             () => _processor.DelayedHeartbeatActivities.All(valueTuple =>
@@ -214,6 +222,13 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         var spanId = activity.SpanId;
 
         _processor.OnStart(activity);
+
+        var delayedHeartbeatActivityLookupRemoved = SpinWait.SpinUntil(
+            () => _processor.DelayedHeartbeatActivitiesLookup.All(
+                keyValue => keyValue.Key != spanId),
+            TimeSpan.FromSeconds(10));
+        Assert.True(delayedHeartbeatActivityLookupRemoved,
+            "Lookup activity with delayed heartbeat not removed in time.");
 
         var delayedHeartbeatActivityRemoved = SpinWait.SpinUntil(
             () => _processor.DelayedHeartbeatActivities.All(valueTuple =>
