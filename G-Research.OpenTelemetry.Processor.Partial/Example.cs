@@ -38,7 +38,8 @@ public class Example
             .AddSource("activitySource")
             .ConfigureResource(configure => { configure.AddService("Example"); })
             .AddProcessor(new PartialActivityProcessor(logExporter: otlpLogExporter,
-                heartbeatIntervalMilliseconds: 1000))
+                heartbeatIntervalMilliseconds: 1000, initialHeartbeatDelayMilliseconds: 6000,
+                processIntervalMilliseconds: 1000))
             .AddProcessor(new SimpleActivityExportProcessor(otlpExporter))
             .Build();
 
@@ -47,10 +48,10 @@ public class Example
         {
             activity1?.SetTag("tag", "activity");
             Console.WriteLine("sleeping inside activity");
-            Thread.Sleep(20000);
+            Thread.Sleep(8000);
         }
 
         Console.WriteLine("sleeping outside activity");
-        Thread.Sleep(10000);
+        Thread.Sleep(5000);
     }
 }
