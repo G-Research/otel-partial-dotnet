@@ -96,6 +96,8 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public override void OnEnd(Activity data)
     {
+        _activeActivities.TryRemove(data.SpanId, out _);
+
         _delayedHeartbeatActivitiesLookup.TryGetValue(data.SpanId, out var isDelayedHeartbeatPending);
 
         if (isDelayedHeartbeatPending)
@@ -115,8 +117,6 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
             _logger.Value.LogInformation(
                 SpecHelper.Json(new TracesData(data, TracesData.Signal.Stop)));
         }
-
-        _activeActivities.TryRemove(data.SpanId, out _);
     }
 
     protected override bool OnShutdown(int timeoutMilliseconds)

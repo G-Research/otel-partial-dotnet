@@ -170,7 +170,7 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
         _processor.OnStart(activity);
 
         _processor.OnEnd(activity);
-        Assert.Contains(activity.SpanId, _processor.ActiveActivities);
+        Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
         Assert.Empty(_exportedLogs);
     }
 
