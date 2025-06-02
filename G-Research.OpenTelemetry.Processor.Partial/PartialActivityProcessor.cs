@@ -29,20 +29,16 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         _readyHeartbeatActivities;
 
     // added for tests convenience
-    /*
     public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities => _activeActivities;
 
-    public IReadOnlyList<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
-        DelayedHeartbeatActivities =>
-        _delayedHeartbeatActivities.ToList();
+    public IReadOnlyCollection<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
+        DelayedHeartbeatActivities => _delayedHeartbeatActivities;
 
-    public ConcurrentDictionary<ActivitySpanId, bool> DelayedHeartbeatActivitiesLookup =>
+    public IReadOnlyCollection<ActivitySpanId> DelayedHeartbeatActivitiesLookup =>
         _delayedHeartbeatActivitiesLookup;
 
-    public IReadOnlyList<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
-        ReadyHeartbeatActivities =>
-        _readyHeartbeatActivities.ToList();
-    */
+    public IReadOnlyCollection<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
+        ReadyHeartbeatActivities => _readyHeartbeatActivities;
 
     private readonly BaseExporter<LogRecord> _logExporter;
     private readonly BaseProcessor<LogRecord> _logProcessor;
@@ -223,7 +219,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
                 {
                     break;
                 }
-                
+
                 var peekedItem = _delayedHeartbeatActivities.Peek();
                 if (peekedItem.InitialHeartbeatTime > DateTime.UtcNow)
                 {
@@ -259,7 +255,7 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
                 {
                     break;
                 }
-                
+
                 var peekedItem = _readyHeartbeatActivities.Peek();
                 if (peekedItem.NextHeartbeatTime > DateTime.UtcNow)
                 {
@@ -285,8 +281,9 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private void LogActivities(List<Activity> activitiesToBeLogged)
     {
-        using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
-            foreach (var activity in activitiesToBeLogged)
+        foreach (var activity in activitiesToBeLogged)
+            // begin scope needs to happen inside foreach so resource is properly set
+            using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
             {
                 {
                     _logger.Value.LogInformation(

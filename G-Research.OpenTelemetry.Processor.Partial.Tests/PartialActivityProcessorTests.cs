@@ -9,7 +9,7 @@ using OpenTelemetry.Trace;
 using Xunit;
 
 namespace GR.OpenTelemetry.Processor.Partial.Tests;
-/*
+
 public class PartialActivityProcessorTests : IDisposable
 {
     private const int HeartbeatIntervalMilliseconds = 1000;
@@ -171,6 +171,9 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
 
         _processor.OnEnd(activity);
         Assert.DoesNotContain(activity.SpanId, _processor.ActiveActivities);
+        Assert.DoesNotContain(activity.SpanId, _processor.DelayedHeartbeatActivitiesLookup);
+        Assert.Contains(_processor.DelayedHeartbeatActivities,
+            valueTuple => valueTuple.SpanId == activity.SpanId);
         Assert.Empty(_exportedLogs);
     }
 
@@ -184,7 +187,7 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
 
         var delayedHeartbeatActivityLookupRemoved = SpinWait.SpinUntil(
             () => _processor.DelayedHeartbeatActivitiesLookup.All(
-                keyValue => keyValue.Key != spanId),
+                activitySpanId => activitySpanId != spanId),
             TimeSpan.FromSeconds(10));
         Assert.True(delayedHeartbeatActivityLookupRemoved,
             "Lookup activity with delayed heartbeat not removed in time.");
@@ -225,7 +228,7 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
 
         var delayedHeartbeatActivityLookupRemoved = SpinWait.SpinUntil(
             () => _processor.DelayedHeartbeatActivitiesLookup.All(
-                keyValue => keyValue.Key != spanId),
+                activitySpanId => activitySpanId != spanId),
             TimeSpan.FromSeconds(10));
         Assert.True(delayedHeartbeatActivityLookupRemoved,
             "Lookup activity with delayed heartbeat not removed in time.");
@@ -278,4 +281,4 @@ Assert.Throws<ArgumentOutOfRangeException>(() =>
             SpinWait.SpinUntil(() => _exportedLogs.Count >= 2, TimeSpan.FromSeconds(10));
         Assert.True(logCountMatch, "Heartbeat log was not exported in time.");
     }
-}*/
+}
