@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
@@ -17,29 +16,54 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     private readonly int _initialHeartbeatDelayMilliseconds;
     private readonly int _processIntervalMilliseconds;
 
-    private readonly ConcurrentDictionary<ActivitySpanId, Activity> _activeActivities;
+    private readonly object _lock = new();
 
-    private readonly ConcurrentQueue<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
+    private readonly Dictionary<ActivitySpanId, Activity> _activeActivities;
+
+    private readonly Queue<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
         _delayedHeartbeatActivities;
 
-    private readonly ConcurrentDictionary<ActivitySpanId, bool> _delayedHeartbeatActivitiesLookup;
+    private readonly HashSet<ActivitySpanId> _delayedHeartbeatActivitiesLookup;
 
-    private readonly ConcurrentQueue<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
+    private readonly Queue<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
         _readyHeartbeatActivities;
 
     // added for tests convenience
-    public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities => _activeActivities;
+    public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities()
+    {
+        lock (_lock)
+        {
+            return new Dictionary<ActivitySpanId, Activity>(_activeActivities);
+        }
+    }
 
-    public IReadOnlyList<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
-        DelayedHeartbeatActivities =>
-        _delayedHeartbeatActivities.ToList();
+    public IReadOnlyCollection<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
+        DelayedHeartbeatActivities()
+    {
+        lock (_lock)
+        {
+            return new List<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>(
+                _delayedHeartbeatActivities);
+        }
+    }
 
-    public ConcurrentDictionary<ActivitySpanId, bool> DelayedHeartbeatActivitiesLookup =>
-        _delayedHeartbeatActivitiesLookup;
+    public IReadOnlyCollection<ActivitySpanId> DelayedHeartbeatActivitiesLookup()
+    {
+        lock (_lock)
+        {
+            return new List<ActivitySpanId>(_delayedHeartbeatActivitiesLookup);
+        }
+    }
 
-    public IReadOnlyList<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
-        ReadyHeartbeatActivities =>
-        _readyHeartbeatActivities.ToList();
+    public IReadOnlyCollection<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
+        ReadyHeartbeatActivities()
+    {
+        lock (_lock)
+        {
+            return new List<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>(
+                _readyHeartbeatActivities);
+        }
+    }
 
     private readonly BaseExporter<LogRecord> _logExporter;
     private readonly BaseProcessor<LogRecord> _logProcessor;
@@ -67,11 +91,10 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
         _initialHeartbeatDelayMilliseconds = initialHeartbeatDelayMilliseconds;
         _processIntervalMilliseconds = processIntervalMilliseconds;
 
-        _delayedHeartbeatActivities = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
-        // there is no thread safe version of set so values are dummy
-        _delayedHeartbeatActivitiesLookup = new ConcurrentDictionary<ActivitySpanId, bool>();
-        _readyHeartbeatActivities = new ConcurrentQueue<(ActivitySpanId, DateTime)>();
-        _activeActivities = new ConcurrentDictionary<ActivitySpanId, Activity>();
+        _delayedHeartbeatActivities = new Queue<(ActivitySpanId, DateTime)>();
+        _delayedHeartbeatActivitiesLookup = new HashSet<ActivitySpanId>();
+        _readyHeartbeatActivities = new Queue<(ActivitySpanId, DateTime)>();
+        _activeActivities = new Dictionary<ActivitySpanId, Activity>();
 
         _shutdownTrigger = new ManualResetEvent(false);
 
@@ -88,27 +111,27 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     public override void OnStart(Activity data)
     {
-        _activeActivities[data.SpanId] = data;
-        _delayedHeartbeatActivitiesLookup[data.SpanId] = true;
-        _delayedHeartbeatActivities.Enqueue((data.SpanId,
-            DateTime.UtcNow.AddMilliseconds(_initialHeartbeatDelayMilliseconds)));
+        lock (_lock)
+        {
+            _activeActivities[data.SpanId] = data;
+            _delayedHeartbeatActivitiesLookup.Add(data.SpanId);
+            _delayedHeartbeatActivities.Enqueue((data.SpanId,
+                DateTime.UtcNow.AddMilliseconds(_initialHeartbeatDelayMilliseconds)));
+        }
     }
 
     public override void OnEnd(Activity data)
     {
-        _activeActivities.TryRemove(data.SpanId, out _);
+        bool isDelayedHeartbeatPending;
+        lock (_lock)
+        {
+            _activeActivities.Remove(data.SpanId);
 
-        _delayedHeartbeatActivitiesLookup.TryGetValue(data.SpanId, out var isDelayedHeartbeatPending);
+            isDelayedHeartbeatPending = _delayedHeartbeatActivitiesLookup.Remove(data.SpanId);
+        }
 
         if (isDelayedHeartbeatPending)
         {
-            while (_delayedHeartbeatActivities.TryPeek(out var activity) &&
-                   activity.SpanId == data.SpanId)
-            {
-                _delayedHeartbeatActivitiesLookup.TryRemove(activity.SpanId, out _);
-                _delayedHeartbeatActivities.TryDequeue(out _);
-            }
-
             return;
         }
 
@@ -212,49 +235,82 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
     private void ProcessDelayedHeartbeatActivities()
     {
-        while (_delayedHeartbeatActivities.TryPeek(out var span) &&
-               span.InitialHeartbeatTime <= DateTime.UtcNow)
+        List<Activity> activitiesToBeLogged = [];
+        lock (_lock)
         {
-            _delayedHeartbeatActivitiesLookup.TryRemove(span.SpanId, out _);
-            _delayedHeartbeatActivities.TryDequeue(out span);
-
-            if (!_activeActivities.TryGetValue(span.SpanId, out var activity))
+            while (true)
             {
-                continue;
-            }
+                if (_delayedHeartbeatActivities.Count == 0)
+                {
+                    break;
+                }
 
-            using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
-            {
-                _logger.Value.LogInformation(
-                    SpecHelper.Json(new TracesData(activity, TracesData.Signal.Heartbeat)));
-            }
+                var peekedItem = _delayedHeartbeatActivities.Peek();
+                if (peekedItem.InitialHeartbeatTime > DateTime.UtcNow)
+                {
+                    break;
+                }
 
-            _readyHeartbeatActivities.Enqueue((span.SpanId,
-                DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
+                _delayedHeartbeatActivitiesLookup.Remove(peekedItem.SpanId);
+                _delayedHeartbeatActivities.Dequeue();
+
+                if (_activeActivities.TryGetValue(peekedItem.SpanId, out var activity))
+                {
+                    activitiesToBeLogged.Add(activity);
+
+                    _readyHeartbeatActivities.Enqueue((peekedItem.SpanId,
+                        DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
+                }
+            }
         }
+
+        LogActivities(activitiesToBeLogged);
     }
 
     private void ProcessReadyHeartbeatActivities()
     {
-        while (_readyHeartbeatActivities.TryPeek(out var span) &&
-               span.NextHeartbeatTime <= DateTime.UtcNow)
+        List<Activity> activitiesToBeLogged = [];
+        lock (_lock)
         {
-            _readyHeartbeatActivities.TryDequeue(out span);
-
-            if (!_activeActivities.TryGetValue(span.SpanId, out var activity))
+            while (true)
             {
-                continue;
-            }
+                if (_readyHeartbeatActivities.Count == 0)
+                {
+                    break;
+                }
 
+                var peekedItem = _readyHeartbeatActivities.Peek();
+                if (peekedItem.NextHeartbeatTime > DateTime.UtcNow)
+                {
+                    break;
+                }
+
+                _readyHeartbeatActivities.Dequeue();
+
+                if (_activeActivities.TryGetValue(peekedItem.SpanId, out var activity))
+                {
+                    activitiesToBeLogged.Add(activity);
+
+                    _readyHeartbeatActivities.Enqueue((peekedItem.SpanId,
+                        DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
+                }
+            }
+        }
+
+        LogActivities(activitiesToBeLogged);
+    }
+
+    private void LogActivities(List<Activity> activitiesToBeLogged)
+    {
+        foreach (var activity in activitiesToBeLogged)
+            // begin scope needs to happen inside foreach so resource is properly set
             using (_logger.Value.BeginScope(GetHeartbeatLogRecordAttributes()))
             {
-                _logger.Value.LogInformation(
-                    SpecHelper.Json(new TracesData(activity, TracesData.Signal.Heartbeat)));
+                {
+                    _logger.Value.LogInformation(
+                        SpecHelper.Json(new TracesData(activity, TracesData.Signal.Heartbeat)));
+                }
             }
-
-            _readyHeartbeatActivities.Enqueue((span.SpanId,
-                DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
-        }
     }
 
     private static void ValidateParameters(BaseExporter<LogRecord> logExporter,

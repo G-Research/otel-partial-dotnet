@@ -44,14 +44,18 @@ public class Example
             .Build();
 
 
-        using (var activity1 = activitySource.StartActivity("activity"))
+        using (activitySource.StartActivity("activity 1"))
         {
-            activity1?.SetTag("tag", "activity");
-            Console.WriteLine("sleeping inside activity");
-            Thread.Sleep(8000);
+            using (activitySource.StartActivity("activity 2"))
+            {
+                Console.WriteLine("sleeping inside activity 2");
+                Thread.Sleep(2000);
+            }
+            Console.WriteLine("sleeping inside activity 1");
+            Thread.Sleep(5000);
         }
 
-        Console.WriteLine("sleeping outside activity");
+        Console.WriteLine("sleeping outside activities");
         Thread.Sleep(5000);
     }
 }
