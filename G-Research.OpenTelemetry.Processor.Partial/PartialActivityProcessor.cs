@@ -242,15 +242,13 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
                 _delayedHeartbeatActivitiesLookup.Remove(peekedItem.SpanId);
                 _delayedHeartbeatActivities.Dequeue();
 
-                if (!_activeActivities.TryGetValue(peekedItem.SpanId, out var activity))
+                if (_activeActivities.TryGetValue(peekedItem.SpanId, out var activity))
                 {
-                    continue;
+                    activitiesToBeLogged.Add(activity);
+
+                    _readyHeartbeatActivities.Enqueue((peekedItem.SpanId,
+                        DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
                 }
-
-                activitiesToBeLogged.Add(activity);
-
-                _readyHeartbeatActivities.Enqueue((peekedItem.SpanId,
-                    DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
             }
         }
 
@@ -277,15 +275,13 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
 
                 _readyHeartbeatActivities.Dequeue();
 
-                if (!_activeActivities.TryGetValue(peekedItem.SpanId, out var activity))
+                if (_activeActivities.TryGetValue(peekedItem.SpanId, out var activity))
                 {
-                    continue;
+                    activitiesToBeLogged.Add(activity);
+
+                    _readyHeartbeatActivities.Enqueue((peekedItem.SpanId,
+                        DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
                 }
-
-                activitiesToBeLogged.Add(activity);
-
-                _readyHeartbeatActivities.Enqueue((peekedItem.SpanId,
-                    DateTime.UtcNow.AddMilliseconds(_heartbeatIntervalMilliseconds)));
             }
         }
 
