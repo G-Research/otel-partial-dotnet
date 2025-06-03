@@ -31,36 +31,26 @@ public class PartialActivityProcessor : BaseProcessor<Activity>
     // added for tests convenience
     public IReadOnlyDictionary<ActivitySpanId, Activity> ActiveActivities()
     {
-        lock (_lock)
-        {
-            return _activeActivities;
-        }
+        return new Dictionary<ActivitySpanId, Activity>(_activeActivities);
     }
 
     public IReadOnlyCollection<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>
         DelayedHeartbeatActivities()
     {
-        lock (_lock)
-        {
-            return _delayedHeartbeatActivities;
-        }
+        return new List<(ActivitySpanId SpanId, DateTime InitialHeartbeatTime)>(
+            _delayedHeartbeatActivities);
     }
 
     public IReadOnlyCollection<ActivitySpanId> DelayedHeartbeatActivitiesLookup()
     {
-        lock (_lock)
-        {
-            return _delayedHeartbeatActivitiesLookup;
-        }
+        return new List<ActivitySpanId>(_delayedHeartbeatActivitiesLookup);
     }
 
     public IReadOnlyCollection<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>
         ReadyHeartbeatActivities()
     {
-        lock (_lock)
-        {
-            return _readyHeartbeatActivities;
-        }
+        return new List<(ActivitySpanId SpanId, DateTime NextHeartbeatTime)>(
+            _readyHeartbeatActivities);
     }
 
     private readonly BaseExporter<LogRecord> _logExporter;
