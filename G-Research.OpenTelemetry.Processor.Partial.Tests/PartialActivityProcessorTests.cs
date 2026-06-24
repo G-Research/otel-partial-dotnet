@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
@@ -29,11 +30,24 @@ public class PartialActivityProcessorTests : IDisposable
         _processor = new PartialActivityProcessor(logExporter, HeartbeatIntervalMilliseconds,
             InitialHeartbeatDelayMilliseconds, ProcessIntervalMilliseconds);
 
-        var randomPort = new Random().Next(40000, 50000);
-        _mockOtlpEndpoint = $"http://localhost:{randomPort}";
+        _mockOtlpEndpoint = $"http://localhost:{GetFreePort()}";
 
         _httpListener = new HttpListener();
         StartMockOtlpEndpoint();
+    }
+
+    private static int GetFreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            return ((IPEndPoint)listener.LocalEndpoint).Port;
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 
     private void StartMockOtlpEndpoint()
